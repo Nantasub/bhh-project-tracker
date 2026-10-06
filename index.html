@@ -30,7 +30,7 @@
             <span id="connectionStatus" class="text-xs bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full font-semibold border border-yellow-300 shadow-sm">
                 กำลังเชื่อมต่อ Cloud...
             </span>
-            <button id="btnBackToHome" style="display: none;" class="bg-gray-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-gray-700 transition">
+            <button id="btnBackToHome" style="display: none;" onclick="backToHome()" class="bg-gray-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-gray-700 transition">
                 ← กลับหน้าหลัก
             </button>
         </div>
@@ -48,9 +48,7 @@
             </button>
         </div>
 
-        <div id="projectGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <!-- Project Cards Render Here -->
-        </div>
+        <div id="projectGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
     </div>
 
     <!-- VIEW 2: PROJECT DETAIL / WORKSPACE -->
@@ -68,11 +66,11 @@
             </div>
         </div>
 
-        <!-- Gantt Chart View -->
+        <!-- Gantt Chart View (รายเดือน / 4 สัปดาห์) -->
         <div class="card">
-            <h2 class="text-lg font-bold mb-4 text-gray-700">แผนผังโครงการ (Gantt Chart รายเดือน/สัปดาห์)</h2>
+            <h2 class="text-lg font-bold mb-4 text-gray-700">แผนผังโครงการ (Gantt Chart รายเดือน / 4 สัปดาห์)</h2>
             <div class="overflow-x-auto">
-                <div id="ganttContainer" class="min-w-[700px]"></div>
+                <div id="ganttContainer" class="min-w-[800px]"></div>
             </div>
         </div>
 
@@ -80,14 +78,13 @@
         <div class="card">
             <h2 class="text-lg font-bold mb-4 text-gray-700">กราฟแสดงความคืบหน้า (S-Curve & Earned Schedule)</h2>
             
-            <!-- Analysis Box -->
             <div id="analysisBox" class="mb-6 p-4 rounded-lg border bg-blue-50 border-blue-200 flex flex-col md:flex-row justify-between items-center gap-4">
                 <div>
                     <p class="text-sm font-semibold text-gray-600">สถานะโครงการเทียบกับแผนงาน:</p>
                     <p id="analysisStatusText" class="text-lg font-bold text-blue-800">กำลังวิเคราะห์ข้อมูล...</p>
                 </div>
                 <div class="text-right">
-                    <p class="text-xs text-gray-500">ผลงานจริงสะสม / แผนสะสม</p>
+                    <p class="text-xs text-gray-500">ผลงานจริงสะสม / แผนสะสมตามช่วงเวลา</p>
                     <p class="text-xl font-bold"><span id="summaryActualText" class="text-green-600">0%</span> / <span id="summaryPlannedText" class="text-gray-500">0%</span></p>
                 </div>
             </div>
@@ -95,13 +92,13 @@
             <canvas id="sCurveChart" height="110"></canvas>
         </div>
 
-        <!-- Workspace Grid (Update Progress & WBS Management) -->
+        <!-- Workspace Grid -->
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
             
             <!-- Left: Update Progress -->
             <div class="card border-l-4 border-green-500 h-fit">
                 <h2 class="text-lg font-bold mb-2 text-green-700">อัปเดตงานประจำวัน (หน้างาน)</h2>
-                <p class="text-xs text-gray-500 mb-4">เลือกวันที่ต้องการบันทึก และกรอกผลงาน (ระบบจะคำนวณสะสมและเทียบกับแผนอัตโนมัติ)</p>
+                <p class="text-xs text-gray-500 mb-4">เลือกวันที่ต้องการบันทึก และกรอกผลงานจริงสะสม</p>
                 
                 <div class="mb-4 bg-gray-50 p-3 rounded border">
                     <label class="block text-xs font-bold text-gray-700 mb-1">วันที่บันทึกผลงาน:</label>
@@ -115,9 +112,8 @@
                 </button>
             </div>
 
-            <!-- Right: WBS Management (Add & Edit) -->
+            <!-- Right: WBS Management -->
             <div class="space-y-6">
-                <!-- Add / Edit WBS Form Card -->
                 <div class="card border-l-4 border-gray-500 bg-gray-50">
                     <div class="flex justify-between items-center mb-3">
                         <h2 id="wbsFormTitle" class="text-lg font-bold text-gray-700">เพิ่มรายการงานย่อย (WBS Setting)</h2>
@@ -134,11 +130,11 @@
                         <div class="grid grid-cols-2 gap-2">
                             <div>
                                 <label class="block text-xs font-bold mb-1 text-gray-600">มูลค่างาน (บาท)</label>
-                                <input type="number" id="taskBudget" placeholder="0" class="w-full p-2 border rounded border-gray-300 text-sm">
+                                <input type="number" id="taskBudget" placeholder="0" oninput="calculateWeightPreview()" class="w-full p-2 border rounded border-gray-300 text-sm">
                             </div>
                             <div>
                                 <label class="block text-xs font-bold mb-1 text-gray-600">น้ำหนักคิดเป็น (%)</label>
-                                <input type="text" id="taskWeightPreview" readonly placeholder="คำนวณอัติโนมัติ" class="w-full p-2 border rounded border-gray-200 bg-gray-100 text-sm font-semibold text-blue-600">
+                                <input type="text" id="taskWeightPreview" readonly placeholder="คำนวณอัตโนมัติ" class="w-full p-2 border rounded border-gray-200 bg-gray-100 text-sm font-semibold text-blue-600">
                             </div>
                         </div>
 
@@ -153,7 +149,6 @@
                             </div>
                         </div>
 
-                        <!-- Quantity Option Checkbox -->
                         <div class="pt-2 border-t">
                             <label class="flex items-center gap-2 cursor-pointer">
                                 <input type="checkbox" id="hasQuantityCheck" onchange="toggleQuantityInput()" class="w-4 h-4 text-blue-600 rounded">
@@ -179,7 +174,6 @@
                     <p class="text-xs text-red-500 mt-2 font-semibold" id="weightWarning"></p>
                 </div>
 
-                <!-- WBS Item List Table/Cards -->
                 <div class="card">
                     <h2 class="text-md font-bold mb-3 text-gray-700">รายการแผนงาน (WBS) ในระบบ</h2>
                     <div id="wbsListContainer" class="space-y-2 max-h-80 overflow-y-auto pr-1"></div>
@@ -298,7 +292,7 @@
                 name: name,
                 budget: budget,
                 tasks: [],
-                history: {} // Date -> { taskId: { qty, progress } }
+                history: {}
             };
             try {
                 const ref = await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'projects'), newProj);
@@ -381,6 +375,15 @@
             renderWbsList();
             renderWorkspace();
             renderSCurve();
+        }
+
+        window.calculateWeightPreview = function() {
+            const p = projects[currentProjectId];
+            const budget = parseFloat(document.getElementById('taskBudget').value) || 0;
+            if(p && p.budget > 0) {
+                const w = (budget / p.budget) * 100;
+                document.getElementById('taskWeightPreview').value = w.toFixed(2) + '%';
+            }
         }
 
         window.toggleQuantityInput = function() {
@@ -491,7 +494,7 @@
                 div.innerHTML = `
                     <div>
                         <p class="font-bold text-gray-800">${t.name}</p>
-                        <p class="text-xs text-gray-500">มูลค่า: ${t.budget.toLocaleString()} ฿ (นั่นคือ ${t.weight.toFixed(2)}%) | ${t.start} ถึง ${t.end}</p>
+                        <p class="text-xs text-gray-500">มูลค่า: ${t.budget.toLocaleString()} ฿ (${t.weight.toFixed(2)}%) | ${t.start} ถึง ${t.end}</p>
                     </div>
                     <div class="flex gap-2">
                         <button onclick="editWbsTask(${t.id})" class="text-blue-600 hover:text-blue-800 p-1 text-xs font-bold bg-blue-50 px-2 py-1 rounded">✏️ แก้ไข</button>
@@ -531,11 +534,11 @@
                                 <input type="number" min="0" max="100" value="${saved.progress}" id="prog_${task.id}" class="w-full p-1.5 border rounded text-sm bg-white" placeholder="%">
                             </div>
                             <div>
-                                <label class="block text-[11px] font-bold text-gray-600 mb-1">หรือกรอกปริมาณสะสม (${task.unit}):</label>
-                                <input type="number" min="0" max="${task.totalQty}" value="${saved.qty}" id="qty_${task.id}" oninput="syncQtyToProgress(${task.id}, ${task.totalQty})" class="w-full p-1.5 border rounded text-sm bg-white" placeholder="จำนวน ${task.unit}">
+                                <label class="block text-[11px] font-bold text-gray-600 mb-1">หรือกรอกปริมาณ (${task.unit}):</label>
+                                <input type="number" min="0" max="${task.totalQty}" value="${saved.qty}" id="qty_${task.id}" oninput="syncQtyToProgress(${task.id}, ${task.totalQty})" class="w-full p-1.5 border rounded text-sm bg-white" placeholder="จำนวน">
                             </div>
                         </div>
-                        <p class="text-xs text-gray-400">เป้าหมายทั้งหมด: ${task.totalQty} ${task.unit} (คิดเป็น Weight ${task.weight.toFixed(2)}%)</p>
+                        <p class="text-xs text-gray-400">เป้าหมายรวม: ${task.totalQty} ${task.unit} (Weight ${task.weight.toFixed(2)}%)</p>
                     `;
                 } else {
                     inputHtml = `
@@ -614,61 +617,163 @@
                 if(new Date(t.end) > maxDate) maxDate = new Date(t.end);
             });
 
-            minDate.setDate(1); // ปรับเป็นวันแรกของเดือน
+            minDate.setDate(1); // ปรับเป็นวันแรกของเดือนเริ่มต้น
+            maxDate.setDate(new Date(maxDate.getFullYear(), maxDate.getMonth() + 1, 0).getDate()); // สิ้นเดือนสุดท้าย
 
-            container.innerHTML = `<div class="text-sm font-bold text-gray-700 mb-2">ช่วงเวลาโครงการ: ${minDate.toISOString().split('T')[0]} ถึง ${maxDate.toISOString().split('T')[0]}</div>`;
+            // สร้างหัวตารางรายเดือน และ 4 สัปดาห์ต่อเดือน
+            let monthsHtml = '';
+            let weeksHtml = '';
             
+            let curr = new Date(minDate);
+            while(curr <= maxDate) {
+                let year = curr.getFullYear();
+                let month = curr.getMonth();
+                let monthNames = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
+                
+                monthsHtml += `<div class="flex-1 text-center font-bold text-xs bg-blue-100 border-r border-blue-200 py-1">${monthNames[month]} ${year}</div>`;
+                weeksHtml += `
+                    <div class="flex-1 grid grid-cols-4 text-[10px] text-center bg-gray-100 border-r text-gray-600 font-semibold">
+                        <span class="border-r py-0.5">W1</span>
+                        <span class="border-r py-0.5">W2</span>
+                        <span class="border-r py-0.5">W3</span>
+                        <span class="py-0.5">W4</span>
+                    </div>
+                `;
+                curr.setMonth(curr.getMonth() + 1);
+            }
+
+            let headerWrapper = `
+                <div class="border rounded-lg overflow-hidden bg-white mb-4">
+                    <div class="flex border-b">${monthsHtml}</div>
+                    <div class="flex">${weeksHtml}</div>
+                </div>
+            `;
+
+            let tasksHtml = '<div class="space-y-2 relative">';
+            const totalProjTime = maxDate - minDate || 1;
+
             p.tasks.forEach(t => {
                 const startD = new Date(t.start);
                 const endD = new Date(t.end);
-                const totalSpan = maxDate - minDate || 1;
-                const leftPercent = Math.max(0, ((startD - minDate) / totalSpan) * 100);
-                const widthPercent = Math.max(2, ((endD - startD) / totalSpan) * 100);
+                const leftPct = Math.max(0, ((startD - minDate) / totalProjTime) * 100);
+                const widthPct = Math.max(2, ((endD - startD) / totalProjTime) * 100);
 
-                const row = document.createElement('div');
-                row.className = "flex items-center py-2 border-b text-sm";
-                row.innerHTML = `
-                    <div class="w-48 font-semibold truncate pr-2" title="${t.name}">${t.name}</div>
-                    <div class="flex-1 bg-gray-100 h-6 rounded relative">
-                        <div class="absolute top-0 bottom-0 bg-blue-300 rounded flex items-center text-xs px-2 font-bold text-blue-900" style="left: ${leftPercent}%; width: ${widthPercent}%;">
-                            ${t.start.slice(5)} → ${t.end.slice(5)}
+                tasksHtml += `
+                    <div class="flex items-center text-xs bg-white p-2 border rounded shadow-sm">
+                        <div class="w-44 font-bold truncate pr-2" title="${t.name}">${t.name}</div>
+                        <div class="flex-1 bg-gray-100 h-6 rounded relative overflow-hidden">
+                            <div class="absolute top-0 bottom-0 bg-blue-500 rounded flex items-center px-2 text-white font-bold text-[11px]" style="left: ${leftPct}%; width: ${widthPct}%;">
+                                ${t.name} (${t.start} ถึง ${t.end})
+                            </div>
                         </div>
                     </div>
                 `;
-                container.appendChild(row);
             });
+            tasksHtml += '</div>';
+
+            container.innerHTML = headerWrapper + tasksHtml;
         }
 
         function renderSCurve() {
             const p = projects[currentProjectId];
-            if(!p || !p.history) return;
+            if(!p || !p.tasks || p.tasks.length === 0) return;
 
-            const dates = Object.keys(p.history).sort();
-            if(dates.length === 0) return;
-
-            const labels = dates;
-            const dataActual = [];
-            const dataPlanned = [];
-
-            dates.forEach((dateStr, idx) => {
-                const dayRec = p.history[dateStr];
-                let totalActual = 0;
-                p.tasks.forEach(task => {
-                    const rec = dayRec[task.id] || { progress: 0 };
-                    totalActual += (rec.progress / 100) * task.weight;
-                });
-                dataActual.push(parseFloat(totalActual.toFixed(2)));
-
-                // แผนงานเชิงเส้นง่ายๆ ตามลำดับวันบันทึก
-                let plannedVal = Math.min(100, ((idx + 1) / dates.length) * 100);
-                dataPlanned.push(parseFloat(plannedVal.toFixed(2)));
+            // หาระยะเวลารวมของโปรเจกต์จาก WBS ทั้งหมดเพื่อสร้างเส้น Planned S-Curve แบบต่อเนื่อง
+            let minDate = new Date(p.tasks[0].start);
+            let maxDate = new Date(p.tasks[0].end);
+            p.tasks.forEach(t => {
+                if(new Date(t.start) < minDate) minDate = new Date(t.start);
+                if(new Date(t.end) > maxDate) maxDate = new Date(t.end);
             });
 
-            const currentActual = dataActual[dataActual.length - 1] || 0;
-            const currentPlanned = dataPlanned[dataPlanned.length - 1] || 0;
+            // สร้าง timeline รายสัปดาห์ตั้งแต่เริ่มจนจบโครงการสำหรับเส้น Planned
+            let plannedLabels = [];
+            let plannedData = [];
+            let curr = new Date(minDate);
+            
+            // สร้างจุดข้อมูลแผนงานประมาณ 10-15 จุดตามช่วงเวลา
+            let totalDays = (maxDate - minDate) / (1000 * 60 * 60 * 24) || 1;
+            let step = Math.max(1, Math.floor(totalDays / 10));
+
+            let tempDate = new Date(minDate);
+            while(tempDate <= maxDate) {
+                let dStr = tempDate.toISOString().split('T')[0];
+                plannedLabels.push(dStr);
+                
+                // คำนวณแผนสะสม ณ วันนั้นๆ จาก WBS
+                let planSum = 0;
+                p.tasks.forEach(task => {
+                    let s = new Date(task.start);
+                    let e = new Date(task.end);
+                    let currentD = new Date(dStr);
+                    if(currentD >= e) {
+                        planSum += task.weight;
+                    } else if(currentD >= s) {
+                        let taskDays = (e - s) / (1000 * 60 * 60 * 24) || 1;
+                        let passedDays = (currentD - s) / (1000 * 60 * 60 * 24);
+                        planSum += task.weight * (passedDays / taskDays);
+                    }
+                });
+                plannedData.push(parseFloat(Math.min(100, planSum).toFixed(2)));
+                tempDate.setDate(tempDate.getDate() + step);
+            }
+
+            // จัดการข้อมูลผลงานจริง (Actual) จากประวัติการอัปเดต
+            const historyDates = Object.keys(p.history || {}).sort();
+            
+            // รวม Label ทั้งหมด (ระหว่าง Planned กับ History วันที่อัปเดตจริง)
+            let allLabels = Array.from(new Set([...plannedLabels, ...historyDates])).sort();
+            
+            let actualDataMap = {};
+            historyDates.forEach(dateStr => {
+                let dayRec = p.history[dateStr];
+                let totalActual = 0;
+                p.tasks.forEach(task => {
+                    let rec = dayRec[task.id] || { progress: 0 };
+                    totalActual += (rec.progress / 100) * task.weight;
+                });
+                actualDataMap[dateStr] = parseFloat(totalActual.toFixed(2));
+            });
+
+            let finalActualData = [];
+            let finalPlannedData = [];
+
+            allLabels.forEach(dStr => {
+                // คำนวณ Planned สำหรับทุก Label
+                let planSum = 0;
+                p.tasks.forEach(task => {
+                    let s = new Date(task.start);
+                    let e = new Date(task.end);
+                    let currentD = new Date(dStr);
+                    if(currentD >= e) {
+                        planSum += task.weight;
+                    } else if(currentD >= s) {
+                        let taskDays = (e - s) / (1000 * 60 * 60 * 24) || 1;
+                        let passedDays = (currentD - s) / (1000 * 60 * 60 * 24);
+                        planSum += task.weight * (passedDays / taskDays);
+                    }
+                });
+                finalPlannedData.push(parseFloat(Math.min(100, planSum).toFixed(2)));
+
+                // Actual (ถ้าวันไหนไม่มีการบันทึก ให้ดึงค่าล่าสุดมาแสดง หรือเว้นว่างไว้ก่อน)
+                if(actualDataMap[dStr] !== undefined) {
+                    finalActualData.push(actualDataMap[dStr]);
+                } else {
+                    // ถ้ายังไม่ถึงวันอัปเดต ให้เป็น null ไว้ก่อนเส้นจะได้ไม่ตก
+                    finalActualData.push(null);
+                }
+            });
+
+            // คำนวณ % สะสมล่าสุด
+            let currentActual = 0;
+            if(historyDates.length > 0) {
+                let lastDate = historyDates[historyDates.length - 1];
+                currentActual = actualDataMap[lastDate] || 0;
+            }
+            let currentPlanned = finalPlannedData[finalPlannedData.length - 1] || 0;
 
             document.getElementById('summaryActualText').innerText = currentActual + '%';
-            document.getElementById('summaryPlannedText').innerText = currentPlanned + '%';
+            document.getElementById('summaryPlannedText').innerText = currentPlanned.toFixed(2) + '%';
 
             const statusText = document.getElementById('analysisStatusText');
             const analysisBox = document.getElementById('analysisBox');
@@ -687,20 +792,21 @@
             chartInstance = new Chart(ctx, {
                 type: 'line',
                 data: {
-                    labels: labels,
+                    labels: allLabels,
                     datasets: [
                         {
                             label: 'ผลงานจริง (Actual S-Curve)',
-                            data: dataActual,
+                            data: finalActualData,
                             borderColor: '#10b981',
                             backgroundColor: 'rgba(16, 185, 129, 0.1)',
                             fill: true,
                             tension: 0.3,
-                            borderWidth: 3
+                            borderWidth: 3,
+                            spanGaps: true
                         },
                         {
                             label: 'แผนงาน (Planned S-Curve)',
-                            data: dataPlanned,
+                            data: finalPlannedData,
                             borderColor: '#9ca3af',
                             borderDash: [5, 5],
                             fill: false,

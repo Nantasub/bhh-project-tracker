@@ -66,7 +66,7 @@
             </div>
         </div>
 
-        <!-- Gantt Chart View (รายเดือน / 4 สัปดาห์) -->
+        <!-- Gantt Chart View -->
         <div class="card">
             <h2 class="text-lg font-bold mb-4 text-gray-700">แผนผังโครงการ (Gantt Chart รายเดือน / 4 สัปดาห์)</h2>
             <div class="overflow-x-auto">
@@ -84,7 +84,7 @@
                     <p id="analysisStatusText" class="text-lg font-bold text-blue-800">กำลังวิเคราะห์ข้อมูล...</p>
                 </div>
                 <div class="text-right">
-                    <p class="text-xs text-gray-500">ผลงานจริงสะสม / แผนสะสมตามช่วงเวลา</p>
+                    <p class="text-xs text-gray-500">ผลงานจริงสะสม / แผนสะสมตามช่วงเวลาจริง</p>
                     <p class="text-xl font-bold"><span id="summaryActualText" class="text-green-600">0%</span> / <span id="summaryPlannedText" class="text-gray-500">0%</span></p>
                 </div>
             </div>
@@ -98,7 +98,7 @@
             <!-- Left: Update Progress -->
             <div class="card border-l-4 border-green-500 h-fit">
                 <h2 class="text-lg font-bold mb-2 text-green-700">อัปเดตงานประจำวัน (หน้างาน)</h2>
-                <p class="text-xs text-gray-500 mb-4">เลือกวันที่ต้องการบันทึก และกรอกผลงานจริงสะสม</p>
+                <p class="text-xs text-gray-500 mb-4">เลือกวันที่ต้องการบันทึก (ระบบจะเทียบแผนงานตามสัดส่วนเวลาจริง)</p>
                 
                 <div class="mb-4 bg-gray-50 p-3 rounded border">
                     <label class="block text-xs font-bold text-gray-700 mb-1">วันที่บันทึกผลงาน:</label>
@@ -617,10 +617,9 @@
                 if(new Date(t.end) > maxDate) maxDate = new Date(t.end);
             });
 
-            minDate.setDate(1); // ปรับเป็นวันแรกของเดือนเริ่มต้น
-            maxDate.setDate(new Date(maxDate.getFullYear(), maxDate.getMonth() + 1, 0).getDate()); // สิ้นเดือนสุดท้าย
+            minDate.setDate(1);
+            maxDate.setDate(new Date(maxDate.getFullYear(), maxDate.getMonth() + 1, 0).getDate());
 
-            // สร้างหัวตารางรายเดือน และ 4 สัปดาห์ต่อเดือน
             let monthsHtml = '';
             let weeksHtml = '';
             
@@ -678,7 +677,6 @@
             const p = projects[currentProjectId];
             if(!p || !p.tasks || p.tasks.length === 0) return;
 
-            // หาระยะเวลารวมของโปรเจกต์จาก WBS ทั้งหมดเพื่อสร้างเส้น Planned S-Curve แบบต่อเนื่อง
             let minDate = new Date(p.tasks[0].start);
             let maxDate = new Date(p.tasks[0].end);
             p.tasks.forEach(t => {
@@ -686,12 +684,12 @@
                 if(new Date(t.end) > maxDate) maxDate = new Date(t.end);
             });
 
-            // สร้าง timeline รายสัปดาห์ตั้งแต่เริ่มจนจบโครงการสำหรับเส้น Planned
+            const projStartMs = minDate.getTime();
+            const projEndMs = maxDate.getTime();
+            const totalProjSpan = projEndMs - projStartMs || 1;
+
             let plannedLabels = [];
             let plannedData = [];
-            let curr = new Date(minDate);
-            
-            // สร้างจุดข้อมูลแผนงานประมาณ 10-15 จุดตามช่วงเวลา
             let totalDays = (maxDate - minDate) / (1000 * 60 * 60 * 24) || 1;
             let step = Math.max(1, Math.floor(totalDays / 10));
 
@@ -700,28 +698,32 @@
                 let dStr = tempDate.toISOString().split('T')[0];
                 plannedLabels.push(dStr);
                 
-                // คำนวณแผนสะสม ณ วันนั้นๆ จาก WBS
                 let planSum = 0;
-                p.tasks.forEach(task => {
-                    let s = new Date(task.start);
-                    let e = new Date(task.end);
-                    let currentD = new Date(dStr);
-                    if(currentD >= e) {
-                        planSum += task.weight;
-                    } else if(currentD >= s) {
-                        let taskDays = (e - s) / (1000 * 60 * 60 * 24) || 1;
-                        let passedDays = (currentD - s) / (1000 * 60 * 60 * 24);
-                        planSum += task.weight * (passedDays / taskDays);
-                    }
-                });
-                plannedData.push(parseFloat(Math.min(100, planSum).toFixed(2)));
+                let currMs = tempDate.getTime();
+                
+                if (currMs <= projStartMs) {
+                    planSum = 0;
+                } else if (currMs >= projEndMs) {
+                    planSum = 100;
+                } else {
+                    p.tasks.forEach(task => {
+                        let s = new Date(task.start);
+                        let e = new Date(task.end);
+                        let currentD = new Date(dStr);
+                        if(currentD >= e) {
+                            planSum += task.weight;
+                        } else if(currentD >= s) {
+                            let taskDays = (e - s) / (1000 * 60 * 60 * 24) || 1;
+                            let passedDays = (currentD - s) / (1000 * 60 * 60 * 24);
+                            planSum += task.weight * (passedDays / taskDays);
+                        }
+                    });
+                }
+                plannedData.push(parseFloat(Math.min(100, Math.max(0, planSum)).toFixed(2)));
                 tempDate.setDate(tempDate.getDate() + step);
             }
 
-            // จัดการข้อมูลผลงานจริง (Actual) จากประวัติการอัปเดต
             const historyDates = Object.keys(p.history || {}).sort();
-            
-            // รวม Label ทั้งหมด (ระหว่าง Planned กับ History วันที่อัปเดตจริง)
             let allLabels = Array.from(new Set([...plannedLabels, ...historyDates])).sort();
             
             let actualDataMap = {};
@@ -739,50 +741,80 @@
             let finalPlannedData = [];
 
             allLabels.forEach(dStr => {
-                // คำนวณ Planned สำหรับทุก Label
                 let planSum = 0;
-                p.tasks.forEach(task => {
-                    let s = new Date(task.start);
-                    let e = new Date(task.end);
-                    let currentD = new Date(dStr);
-                    if(currentD >= e) {
-                        planSum += task.weight;
-                    } else if(currentD >= s) {
-                        let taskDays = (e - s) / (1000 * 60 * 60 * 24) || 1;
-                        let passedDays = (currentD - s) / (1000 * 60 * 60 * 24);
-                        planSum += task.weight * (passedDays / taskDays);
-                    }
-                });
-                finalPlannedData.push(parseFloat(Math.min(100, planSum).toFixed(2)));
+                let currMs = new Date(dStr).getTime();
+                if (currMs <= projStartMs) {
+                    planSum = 0;
+                } else if (currMs >= projEndMs) {
+                    planSum = 100;
+                } else {
+                    p.tasks.forEach(task => {
+                        let s = new Date(task.start);
+                        let e = new Date(task.end);
+                        let currentD = new Date(dStr);
+                        if(currentD >= e) {
+                            planSum += task.weight;
+                        } else if(currentD >= s) {
+                            let taskDays = (e - s) / (1000 * 60 * 60 * 24) || 1;
+                            let passedDays = (currentD - s) / (1000 * 60 * 60 * 24);
+                            planSum += task.weight * (passedDays / taskDays);
+                        }
+                    });
+                }
+                finalPlannedData.push(parseFloat(Math.min(100, Math.max(0, planSum)).toFixed(2)));
 
-                // Actual (ถ้าวันไหนไม่มีการบันทึก ให้ดึงค่าล่าสุดมาแสดง หรือเว้นว่างไว้ก่อน)
                 if(actualDataMap[dStr] !== undefined) {
                     finalActualData.push(actualDataMap[dStr]);
                 } else {
-                    // ถ้ายังไม่ถึงวันอัปเดต ให้เป็น null ไว้ก่อนเส้นจะได้ไม่ตก
                     finalActualData.push(null);
                 }
             });
 
-            // คำนวณ % สะสมล่าสุด
+            const selectedDateInput = document.getElementById('updateDateInput').value;
             let currentActual = 0;
+            let currentPlanned = 0;
+
             if(historyDates.length > 0) {
                 let lastDate = historyDates[historyDates.length - 1];
                 currentActual = actualDataMap[lastDate] || 0;
             }
-            let currentPlanned = finalPlannedData[finalPlannedData.length - 1] || 0;
+
+            let targetPlanDate = selectedDateInput || new Date().toISOString().split('T')[0];
+            let targetMs = new Date(targetPlanDate).getTime();
+
+            if (targetMs <= projStartMs) {
+                currentPlanned = 0;
+            } else if (targetMs >= projEndMs) {
+                currentPlanned = 100;
+            } else {
+                p.tasks.forEach(task => {
+                    let s = new Date(task.start);
+                    let e = new Date(task.end);
+                    let currentD = new Date(targetPlanDate);
+                    if(currentD >= e) {
+                        currentPlanned += task.weight;
+                    } else if(currentD >= s) {
+                        let taskDays = (e - s) / (1000 * 60 * 60 * 24) || 1;
+                        let passedDays = (currentD - s) / (1000 * 60 * 60 * 24);
+                        currentPlanned += task.weight * (passedDays / taskDays);
+                    }
+                });
+            }
+            currentPlanned = parseFloat(Math.min(100, Math.max(0, currentPlanned)).toFixed(2));
 
             document.getElementById('summaryActualText').innerText = currentActual + '%';
-            document.getElementById('summaryPlannedText').innerText = currentPlanned.toFixed(2) + '%';
+            document.getElementById('summaryPlannedText').innerText = currentPlanned + '%';
 
             const statusText = document.getElementById('analysisStatusText');
             const analysisBox = document.getElementById('analysisBox');
-            if(currentActual >= currentPlanned) {
-                statusText.innerText = `โครงการเร็วกว่าแผนงาน (+${(currentActual - currentPlanned).toFixed(2)}%)`;
+            
+            const diff = parseFloat((currentActual - currentPlanned).toFixed(2));
+            if(diff >= 0) {
+                statusText.innerText = `โครงการเร็วกว่าแผนงาน (+${diff}%)`;
                 analysisBox.className = "mb-6 p-4 rounded-lg border bg-green-50 border-green-200 flex flex-col md:flex-row justify-between items-center gap-4";
                 statusText.className = "text-lg font-bold text-green-800";
             } else {
-                statusText.innerText = `โครงการช้ากว่าแผนงาน (${(currentActual - currentPlanned).toFixed(2)}%)`;
+                statusText.innerText = `โครงการช้ากว่าแผนงาน (${diff}%)`;
                 analysisBox.className = "mb-6 p-4 rounded-lg border bg-red-50 border-red-200 flex flex-col md:flex-row justify-between items-center gap-4";
                 statusText.className = "text-lg font-bold text-red-800";
             }

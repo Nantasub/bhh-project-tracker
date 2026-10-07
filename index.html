@@ -252,6 +252,35 @@
             });
         }
 
+        // --- Core Helpers for accurate backwards traversal ---
+        function getTaskActualPct(p, taskId, targetDateStr) {
+            let dates = Object.keys(p.history || {}).sort().reverse();
+            for(let d of dates) {
+                if(d <= targetDateStr && p.history[d][taskId] !== undefined) {
+                    return p.history[d][taskId].progress || 0;
+                }
+            }
+            return 0;
+        }
+
+        function getTaskActualPctBefore(p, taskId, targetDateStr) {
+            let dates = Object.keys(p.history || {}).sort().reverse();
+            for(let d of dates) {
+                if(d < targetDateStr && p.history[d][taskId] !== undefined) {
+                    return p.history[d][taskId].progress || 0;
+                }
+            }
+            return 0;
+        }
+
+        function calculateTaskPlanPct(task, targetDateStr) {
+            let s = new Date(task.start), e = new Date(task.end), currentD = new Date(targetDateStr);
+            if (currentD >= e) return 100;
+            if (currentD <= s) return 0;
+            return Math.min(100, Math.max(0, ((currentD - s) / (e - s)) * 100));
+        }
+        // ----------------------------------------------------
+
         window.openCreateModal = function() { document.getElementById('modalProjName').value = ''; document.getElementById('modalProjBudget').value = ''; document.getElementById('createProjectModal').classList.remove('hidden'); }
         window.closeCreateModal = function() { document.getElementById('createProjectModal').classList.add('hidden'); }
 
@@ -296,11 +325,9 @@
                 let maxD = new Date(p.tasks[0].end);
                 p.tasks.forEach(t => { if(new Date(t.end) > maxD) maxD = new Date(t.end); });
                 endDateStr = maxD.toISOString().split('T')[0];
-                const historyDates = Object.keys(p.history || {}).sort();
-                if(historyDates.length > 0) {
-                    let lastRec = p.history[historyDates[historyDates.length-1]];
-                    p.tasks.forEach(t => { overallProg += ((lastRec[t.id]?.progress || 0) / 100) * t.weight; });
-                }
+                
+                const todayStr = new Date().toISOString().split('T')[0];
+                p.tasks.forEach(t => { overallProg += (getTaskActualPct(p, t.id, todayStr) / 100) * t.weight; });
             }
             return { overallProg, endDateStr };
         }
@@ -455,8 +482,7 @@
             const newRem = document.getElementById(`edit_hist_rem_${dStr}`).value.trim();
             const p = projects[currentProjectId];
             
-            let prevDates = Object.keys(p.history||{}).sort().filter(d => d < dStr);
-            let prevCumul = prevDates.length > 0 ? (p.history[prevDates[prevDates.length-1]][taskId]?.progress || 0) : 0;
+            let prevCumul = getTaskActualPctBefore(p, taskId, dStr);
             
             if (newProg < prevCumul) {
                 if(!confirm(`⚠️ ยืนยันการแก้ไข!\n\n% สะสมใหม่ (${newProg}%) มีค่าน้อยกว่ายอดวันก่อนหน้า (${prevCumul}%)\nคุณต้องการบันทึกให้ยอดลดลงใช่หรือไม่?`)) return;
@@ -474,19 +500,6 @@
                 openTaskHistoryModal(taskId); 
                 renderWorkspace(); 
             } catch(e) { showToast('ผิดพลาด', 'error'); }
-        }
-
-        function calculateTaskPlanPct(task, targetDateStr) {
-            let s = new Date(task.start), e = new Date(task.end), currentD = new Date(targetDateStr);
-            if (currentD >= e) return 100;
-            if (currentD <= s) return 0;
-            return Math.min(100, Math.max(0, ((currentD - s) / (e - s)) * 100));
-        }
-
-        function getTaskActualPct(p, taskId, targetDateStr) {
-            let historyDates = Object.keys(p.history || {}).sort().filter(d => d <= targetDateStr);
-            if(historyDates.length === 0) return 0;
-            return p.history[historyDates[historyDates.length-1]][taskId]?.progress || 0;
         }
 
         window.renderWorkspace = function() {
@@ -564,12 +577,10 @@
 
                 let currentRem = remEl ? remEl.value.trim() : '';
                 
-                // ไม่บันทึกขยะทับลงไป ถ้ายูสเซอร์ไม่ได้แตะต้องฟิลด์อะไรเลยในวันนี้ (ประหยัดโควต้าและกันเลข 0)
                 if (filled === 0 && currentRem === '' && !p.history[selDate]?.[task.id]) { continue; }
 
                 let finalProg = getTaskActualPct(p, task.id, selDate), finalQty = 0;
-                let prevDates = Object.keys(p.history||{}).sort().filter(d => d < selDate);
-                let prevCumul = prevDates.length > 0 ? (p.history[prevDates[prevDates.length-1]][task.id]?.progress || 0) : 0;
+                let prevCumul = getTaskActualPctBefore(p, task.id, selDate);
 
                 if (cumulEl && cumulEl.value !== '') { finalProg = parseFloat(cumulEl.value); finalQty = task.hasQty ? (finalProg/100)*task.totalQty : 0; }
                 else if (qtyEl && qtyEl.value !== '' && task.totalQty>0) { finalQty = parseFloat(qtyEl.value); finalProg = (finalQty/task.totalQty)*100; }
@@ -678,7 +689,6 @@
             let allLabels = Array.from(new Set([...plannedLabels, ...historyDates])).sort();
             
             let finalActualData = [], finalPlannedData = [];
-            let lastKnownActual = 0;
 
             allLabels.forEach(dStr => {
                 let planSum = 0;
@@ -687,9 +697,8 @@
 
                 if(historyDates.includes(dStr)) {
                     let totalAct = 0;
-                    p.tasks.forEach(t => { totalAct += (p.history[dStr][t.id]?.progress || 0) * (t.weight/100); });
-                    lastKnownActual = parseFloat(totalAct.toFixed(2));
-                    finalActualData.push(lastKnownActual);
+                    p.tasks.forEach(t => { totalAct += getTaskActualPct(p, t.id, dStr) * (t.weight/100); });
+                    finalActualData.push(parseFloat(totalAct.toFixed(2)));
                 } else {
                     finalActualData.push(null);
                 }
@@ -697,13 +706,10 @@
 
             const selDate = document.getElementById('updateDateInput').value || new Date().toISOString().split('T')[0];
             let currentPlanned = 0, currentActual = 0;
-            p.tasks.forEach(t => { currentPlanned += calculateTaskPlanPct(t, selDate) * (t.weight/100); });
-            
-            let prevD = historyDates.filter(d => d <= selDate);
-            if(prevD.length > 0) {
-                let dRec = p.history[prevD[prevD.length-1]];
-                p.tasks.forEach(t => { currentActual += (dRec[t.id]?.progress || 0) * (t.weight/100); });
-            }
+            p.tasks.forEach(t => { 
+                currentPlanned += calculateTaskPlanPct(t, selDate) * (t.weight/100); 
+                currentActual += getTaskActualPct(p, t.id, selDate) * (t.weight/100);
+            });
 
             document.getElementById('summaryActualText').innerText = currentActual.toFixed(2) + '%';
             document.getElementById('summaryPlannedText').innerText = currentPlanned.toFixed(2) + '%';

@@ -94,14 +94,11 @@
                 <h2 class="text-lg font-bold mb-2 text-green-700">อัปเดตงานประจำวัน (หน้างาน)</h2>
                 <div class="mb-4 bg-gray-50 p-3 rounded border flex justify-between items-center">
                     <div class="flex-1">
-                        <label class="block text-xs font-bold text-gray-700 mb-1">วันที่บันทึกผลงาน (แก้ไขย้อนหลังได้):</label>
+                        <label class="block text-xs font-bold text-gray-700 mb-1">วันที่บันทึกผลงาน (แก้ไขย้อนหลังได้ แต่ไม่เกินวันนี้):</label>
                         <input type="date" id="updateDateInput" class="w-full p-2 border rounded border-gray-300 text-sm bg-white" onchange="renderWorkspace()">
                     </div>
                 </div>
                 <div id="taskUpdateList" class="space-y-4"></div>
-                <button id="btnSaveProgress" class="mt-6 w-full bg-green-600 text-white font-bold py-3 rounded-lg text-base hover:bg-green-700 shadow-md">
-                    บันทึกผลงาน
-                </button>
             </div>
 
             <!-- Right: WBS Management -->
@@ -252,7 +249,7 @@
             });
         }
 
-        // --- Core Helpers for accurate backwards traversal ---
+        // --- Core Helpers ---
         function getTaskActualPct(p, taskId, targetDateStr) {
             let dates = Object.keys(p.history || {}).sort().reverse();
             for(let d of dates) {
@@ -279,7 +276,6 @@
             if (currentD <= s) return 0;
             return Math.min(100, Math.max(0, ((currentD - s) / (e - s)) * 100));
         }
-        // ----------------------------------------------------
 
         window.openCreateModal = function() { document.getElementById('modalProjName').value = ''; document.getElementById('modalProjBudget').value = ''; document.getElementById('createProjectModal').classList.remove('hidden'); }
         window.closeCreateModal = function() { document.getElementById('createProjectModal').classList.add('hidden'); }
@@ -307,7 +303,13 @@
             document.getElementById('detailView').style.display = 'block';
             document.getElementById('btnBackToHome').style.display = 'inline-block';
             document.getElementById('subHeaderTitle').innerText = projects[id].name;
-            document.getElementById('updateDateInput').value = new Date().toISOString().split('T')[0];
+            
+            // ล็อกวันที่ห้ามเลือกอนาคต
+            const todayStr = new Date().toISOString().split('T')[0];
+            const dateInput = document.getElementById('updateDateInput');
+            dateInput.value = todayStr;
+            dateInput.max = todayStr; 
+
             renderDetailView();
         }
 
@@ -497,10 +499,74 @@
             try {
                 await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'projects', currentProjectId), { history: p.history });
                 showToast('แก้ไขประวัติสำเร็จ');
-                openTaskHistoryModal(taskId); 
-                renderWorkspace(); 
+                // renderWorkspace จะทำให้อัปเดตกราฟหลักด้วย และจะโหลดเปิดป๊อปอัปให้ใหม่ถ้าต้องการ
             } catch(e) { showToast('ผิดพลาด', 'error'); }
         }
+
+        // --- รื้อระบบ Save ใหม่เป็นปุ่มแยกรายไอเทม ---
+        window.saveSingleTaskProgress = async function(taskId) {
+            if(!auth.currentUser) return;
+            const p = projects[currentProjectId];
+            const selDate = document.getElementById('updateDateInput').value;
+            if(!selDate) { showToast('กรุณาเลือกวันที่บันทึก', 'error'); return; }
+
+            const task = p.tasks.find(t => t.id == taskId);
+            const progEl = document.getElementById(`prog_${taskId}`);
+            const cumulEl = document.getElementById(`cumul_${taskId}`);
+            const qtyEl = document.getElementById(`qty_${taskId}`);
+            const remEl = document.getElementById(`remark_${taskId}`);
+
+            let filled = (progEl && progEl.value !== '') ? 1 : 0;
+            filled += (cumulEl && cumulEl.value !== '') ? 1 : 0;
+            filled += (qtyEl && qtyEl.value !== '') ? 1 : 0;
+
+            if (filled > 1) { showToast('ข้อมูลซ้ำซ้อน โปรดกรอกแค่ 1 ช่อง', 'error'); return; }
+
+            let currentRem = remEl ? remEl.value.trim() : '';
+
+            let prevCumul = getTaskActualPctBefore(p, taskId, selDate);
+            let finalProg = getTaskActualPct(p, taskId, selDate); 
+            let finalQty = 0;
+
+            if (cumulEl && cumulEl.value !== '') {
+                finalProg = parseFloat(cumulEl.value);
+                finalQty = task.hasQty ? (finalProg/100)*task.totalQty : 0;
+            } else if (qtyEl && qtyEl.value !== '' && task.totalQty > 0) {
+                finalQty = parseFloat(qtyEl.value);
+                finalProg = (finalQty/task.totalQty)*100;
+            } else if (progEl && progEl.value !== '') {
+                finalProg = prevCumul + parseFloat(progEl.value);
+                finalQty = task.hasQty ? (finalProg/100)*task.totalQty : 0;
+            } else if (p.history && p.history[selDate] && p.history[selDate][taskId]) {
+                finalProg = p.history[selDate][taskId].progress;
+                finalQty = p.history[selDate][taskId].qty;
+            } else if (currentRem !== '') {
+                finalProg = prevCumul; // ไม่ได้กรอกเลขแต่กรอกหมายเหตุ ให้ดึงเลขเดิมมาเก็บ
+                finalQty = task.hasQty ? (finalProg/100)*task.totalQty : 0;
+            } else {
+                 showToast('กรุณากรอกข้อมูลก่อนกดบันทึก', 'error'); return;
+            }
+
+            finalProg = Math.min(100, Math.max(0, finalProg));
+
+            if (filled > 0 && finalProg < prevCumul) {
+                if(!confirm(`⚠️ แจ้งเตือน!\n\nงาน "${task.name}"\nคุณกำลังบันทึก % สะสม (${finalProg.toFixed(1)}%) ซึ่งน้อยกว่ายอดสะสมของวันก่อนหน้า (${prevCumul.toFixed(1)}%)\n\nยืนยันแก้ไขให้ลดลงใช่หรือไม่?`)) {
+                    return;
+                }
+            }
+
+            if (!p.history) p.history = {};
+            if (!p.history[selDate]) p.history[selDate] = {};
+
+            p.history[selDate][taskId] = { progress: finalProg, qty: finalQty, remark: currentRem };
+
+            try {
+                await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'projects', currentProjectId), { history: p.history });
+                showToast(`บันทึกผลงานสำเร็จ!`);
+            } catch(e) {
+                showToast('บันทึกไม่สำเร็จ', 'error');
+            }
+        };
 
         window.renderWorkspace = function() {
             const container = document.getElementById('taskUpdateList'); container.innerHTML = '';
@@ -550,7 +616,11 @@
                     ${inputHtml}
                     <div id="warn_${task.id}" class="text-[11px] text-red-500 hidden font-bold">⚠️ เลือกกรอกแค่ช่องเดียว! ห้ามกรอกช่อง "เพิ่มวันนี้" คู่กับ "สะสม"</div>
                     <textarea id="remark_${task.id}" class="w-full p-2 border rounded text-xs text-gray-600 bg-gray-50" placeholder="ระบุรายละเอียดหน้างาน หรือหมายเหตุเพิ่มเติม...">${displayRem}</textarea>
-                    <p class="text-[11px] text-gray-500 font-semibold bg-blue-50 p-1.5 rounded inline-block">📌 แผนสะสมถึงวันนี้ควรได้: <span class="text-blue-600 font-bold">${taskPlanPct.toFixed(1)}%</span></p>
+                    
+                    <div class="flex justify-between items-center mt-2 pt-2 border-t border-gray-100">
+                        <p class="text-[11px] text-gray-500 font-semibold bg-blue-50 p-1.5 rounded inline-block">📌 แผนสะสมถึงวันนี้ควรได้: <span class="text-blue-600 font-bold">${taskPlanPct.toFixed(1)}%</span></p>
+                        <button onclick="saveSingleTaskProgress(${task.id})" class="bg-green-600 text-white px-4 py-1.5 rounded text-xs font-bold hover:bg-green-700 shadow flex items-center gap-1">💾 บันทึกงานนี้</button>
+                    </div>
                 `;
                 container.appendChild(div);
             });
@@ -562,54 +632,6 @@
             let filled = (prog && prog.value !== '') ? 1:0; filled += (cumul && cumul.value !== '') ? 1:0; filled += (qty && qty.value !== '') ? 1:0;
             document.getElementById(`warn_${taskId}`).style.display = filled > 1 ? 'block' : 'none';
         }
-
-        document.getElementById('btnSaveProgress').addEventListener('click', async () => {
-            const p = projects[currentProjectId], selDate = document.getElementById('updateDateInput').value;
-            let dayRec = { ...(p.history[selDate] || {}) };
-            let hasErr = false, abortSave = false;
-
-            for(let i=0; i<p.tasks.length; i++) {
-                let task = p.tasks[i];
-                const progEl = document.getElementById(`prog_${task.id}`), cumulEl = document.getElementById(`cumul_${task.id}`), qtyEl = document.getElementById(`qty_${task.id}`), remEl = document.getElementById(`remark_${task.id}`);
-                
-                let filled = (progEl && progEl.value !== '')?1:0; filled += (cumulEl && cumulEl.value !== '')?1:0; filled += (qtyEl && qtyEl.value !== '')?1:0;
-                if(filled > 1) { hasErr = true; break; }
-
-                let currentRem = remEl ? remEl.value.trim() : '';
-                
-                if (filled === 0 && currentRem === '' && !p.history[selDate]?.[task.id]) { continue; }
-
-                let finalProg = getTaskActualPct(p, task.id, selDate), finalQty = 0;
-                let prevCumul = getTaskActualPctBefore(p, task.id, selDate);
-
-                if (cumulEl && cumulEl.value !== '') { finalProg = parseFloat(cumulEl.value); finalQty = task.hasQty ? (finalProg/100)*task.totalQty : 0; }
-                else if (qtyEl && qtyEl.value !== '' && task.totalQty>0) { finalQty = parseFloat(qtyEl.value); finalProg = (finalQty/task.totalQty)*100; }
-                else if (progEl && progEl.value !== '') {
-                    finalProg = prevCumul + parseFloat(progEl.value);
-                    finalQty = task.hasQty ? (finalProg/100)*task.totalQty : 0;
-                } else if (p.history[selDate]?.[task.id]) {
-                    finalProg = p.history[selDate][task.id].progress;
-                    finalQty = p.history[selDate][task.id].qty;
-                }
-
-                if (filled > 0 && finalProg < prevCumul) {
-                    if(!confirm(`⚠️ แจ้งเตือนตรวจพบความผิดปกติ!\n\nงาน "${task.name}"\nคุณกำลังบันทึก % สะสม (${finalProg.toFixed(1)}%) ซึ่งน้อยกว่ายอดสะสมของวันก่อนหน้า (${prevCumul.toFixed(1)}%)\n\nคุณต้องการแก้ไข % สะสมของงานนี้ให้ลดลงใช่หรือไม่?`)) {
-                        abortSave = true; break;
-                    }
-                }
-                
-                dayRec[task.id] = { progress: Math.min(100, finalProg), qty: finalQty, remark: currentRem };
-            }
-
-            if(abortSave) return;
-            if(hasErr) { showToast('ข้อมูลซ้ำซ้อน โปรดกรอกแค่ 1 ช่องต่อ 1 งาน', 'error'); return; }
-            
-            const history = { ...(p.history || {}) }; history[selDate] = dayRec;
-            try {
-                await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'projects', currentProjectId), { history });
-                showToast('บันทึกผลงานสำเร็จ!'); renderWorkspace();
-            } catch(e) { showToast('บันทึกไม่สำเร็จ', 'error'); }
-        });
 
         function renderGantt() {
             const container = document.getElementById('ganttContainer'); container.innerHTML = '';

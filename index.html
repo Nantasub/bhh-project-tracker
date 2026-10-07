@@ -385,7 +385,7 @@
             });
         }
 
-        // --- TASK HISTORY MODAL ---
+        // --- TASK HISTORY MODAL (INLINE EDIT) ---
         window.openTaskHistoryModal = function(taskId) {
             const p = projects[currentProjectId];
             const task = p.tasks.find(t => t.id == taskId);
@@ -399,13 +399,19 @@
             
             historyDates.forEach(d => {
                 let rec = p.history[d][task.id];
-                if(rec && (rec.progress > 0 || rec.remark)) {
+                if(rec && (rec.progress > 0 || rec.remark || d === historyDates[0])) { 
                     labels.push(d); dataActual.push(rec.progress);
                     let remTxt = rec.remark ? `💬 ${rec.remark}` : '-';
-                    let li = document.createElement('div'); li.className = "flex justify-between items-center bg-gray-50 p-2 rounded border";
+                    let li = document.createElement('div'); 
+                    li.id = `hist_row_${taskId}_${d}`;
+                    li.className = "flex justify-between items-center bg-gray-50 p-2 rounded border";
                     li.innerHTML = `
-                        <div><span class="font-bold text-gray-800">${d}</span> <span class="text-green-600 font-bold ml-2">ทำได้ ${rec.progress.toFixed(2)}%</span><div class="text-xs text-gray-500 mt-1">${remTxt}</div></div>
-                        <button onclick="editHistoryDate('${d}')" class="text-xs bg-blue-100 text-blue-700 px-3 py-1 rounded font-bold hover:bg-blue-200">✏️ แก้ไข</button>
+                        <div class="flex-1 pr-2">
+                            <span class="font-bold text-gray-800">${d}</span> 
+                            <span class="text-green-600 font-bold ml-2">สะสม ${rec.progress.toFixed(2)}%</span>
+                            <div class="text-xs text-gray-500 mt-1 break-words">${remTxt}</div>
+                        </div>
+                        <button onclick="inlineEditHistory(${taskId}, '${d}')" class="text-xs bg-blue-100 text-blue-700 px-3 py-2 rounded font-bold hover:bg-blue-200">✏️ แก้ไข</button>
                     `;
                     listContainer.prepend(li);
                 }
@@ -416,7 +422,7 @@
             if(taskHistoryChartInstance) taskHistoryChartInstance.destroy();
             taskHistoryChartInstance = new Chart(document.getElementById('taskHistoryChart').getContext('2d'), {
                 type: 'line',
-                data: { labels: labels, datasets: [{ label: '% ความก้าวหน้าสะสม', data: dataActual, borderColor: '#3b82f6', backgroundColor: 'rgba(59, 130, 246, 0.2)', fill: true, tension: 0.2 }] },
+                data: { labels: labels, datasets: [{ label: '% ความก้าวหน้าสะสม', data: dataActual, borderColor: '#3b82f6', backgroundColor: 'rgba(59, 130, 246, 0.2)', fill: true, tension: 0.2, borderWidth: 2 }] },
                 options: { responsive: true, scales: { y: { min: 0, max: 100 } } }
             });
 
@@ -424,11 +430,50 @@
         }
 
         window.closeTaskHistoryModal = function() { document.getElementById('taskHistoryModal').classList.add('hidden'); }
-        window.editHistoryDate = function(dStr) {
-            closeTaskHistoryModal();
-            document.getElementById('updateDateInput').value = dStr;
-            renderWorkspace();
-            window.scrollTo({ top: 0, behavior: 'smooth' });
+
+        window.inlineEditHistory = function(taskId, dStr) {
+            const p = projects[currentProjectId];
+            const rec = p.history[dStr][taskId];
+            const li = document.getElementById(`hist_row_${taskId}_${dStr}`);
+            li.innerHTML = `
+                <div class="flex flex-col gap-2 w-full">
+                    <div class="font-bold text-gray-800 border-b pb-1">แก้ไขประวัติ: ${dStr}</div>
+                    <div class="flex gap-2">
+                        <div class="flex-1"><label class="text-[10px] font-bold text-blue-700">% สะสมใหม่</label><input type="number" id="edit_hist_prog_${dStr}" value="${rec.progress}" class="w-full p-1.5 border rounded text-xs font-bold text-blue-600 bg-white"></div>
+                    </div>
+                    <div><label class="text-[10px] font-bold">หมายเหตุ</label><textarea id="edit_hist_rem_${dStr}" class="w-full p-1.5 border rounded text-xs bg-white">${rec.remark || ''}</textarea></div>
+                    <div class="flex gap-2 mt-1">
+                        <button onclick="saveInlineHistory(${taskId}, '${dStr}')" class="bg-green-600 text-white px-4 py-1.5 rounded text-xs font-bold shadow hover:bg-green-700">💾 บันทึกการแก้ไข</button>
+                        <button onclick="openTaskHistoryModal(${taskId})" class="bg-gray-300 text-gray-800 px-4 py-1.5 rounded text-xs font-bold hover:bg-gray-400">ยกเลิก</button>
+                    </div>
+                </div>
+            `;
+        }
+
+        window.saveInlineHistory = async function(taskId, dStr) {
+            const newProg = parseFloat(document.getElementById(`edit_hist_prog_${dStr}`).value) || 0;
+            const newRem = document.getElementById(`edit_hist_rem_${dStr}`).value.trim();
+            const p = projects[currentProjectId];
+            
+            let prevDates = Object.keys(p.history||{}).sort().filter(d => d < dStr);
+            let prevCumul = prevDates.length > 0 ? (p.history[prevDates[prevDates.length-1]][taskId]?.progress || 0) : 0;
+            
+            if (newProg < prevCumul) {
+                if(!confirm(`⚠️ ยืนยันการแก้ไข!\n\n% สะสมใหม่ (${newProg}%) มีค่าน้อยกว่ายอดวันก่อนหน้า (${prevCumul}%)\nคุณต้องการบันทึกให้ยอดลดลงใช่หรือไม่?`)) return;
+            }
+
+            p.history[dStr][taskId].progress = newProg;
+            p.history[dStr][taskId].remark = newRem;
+            
+            const task = p.tasks.find(t=>t.id==taskId);
+            if(task.hasQty) p.history[dStr][taskId].qty = (newProg/100)*task.totalQty;
+
+            try {
+                await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'projects', currentProjectId), { history: p.history });
+                showToast('แก้ไขประวัติสำเร็จ');
+                openTaskHistoryModal(taskId); 
+                renderWorkspace(); 
+            } catch(e) { showToast('ผิดพลาด', 'error'); }
         }
 
         function calculateTaskPlanPct(task, targetDateStr) {
@@ -450,15 +495,17 @@
             const selectedDate = document.getElementById('updateDateInput').value;
             if(!p || !p.tasks || p.tasks.length === 0) return;
 
-            const savedDataForDate = (p.history || {})[selectedDate] || {};
+            const savedDataForDate = (p.history || {})[selectedDate] || null;
 
             p.tasks.forEach(task => {
-                const saved = savedDataForDate[task.id] || { progress: '', qty: '', remark: '' };
+                const saved = savedDataForDate ? savedDataForDate[task.id] : null;
+                
+                let displayProg = saved && saved.progress !== undefined ? saved.progress : '';
+                let displayQty = saved && saved.qty !== undefined ? saved.qty : '';
+                let displayRem = saved && saved.remark !== undefined ? saved.remark : '';
+
                 let taskPlanPct = calculateTaskPlanPct(task, selectedDate);
                 let currentActualPct = getTaskActualPct(p, task.id, selectedDate);
-                
-                // ถือว่าถ้าในวันนี้ไม่มีข้อมูล ให้แสดง progress ล่าสุดในช่องสะสมไว้ก่อน
-                let displayCumul = saved.progress !== '' ? saved.progress : currentActualPct;
 
                 const div = document.createElement('div'); div.className = "p-4 bg-white border rounded shadow-sm space-y-3 relative";
                 
@@ -467,29 +514,29 @@
                     inputHtml = `
                         <div class="grid grid-cols-3 gap-2 bg-gray-50 p-2 rounded border">
                             <div><label class="text-[10px] font-bold">% ทำเพิ่มวันนี้</label><input type="number" id="prog_${task.id}" oninput="checkConflict(${task.id})" class="w-full p-1 border rounded text-xs bg-white"></div>
-                            <div><label class="text-[10px] font-bold">% สะสมถึงวันนี้</label><input type="number" value="${saved.progress !== '' ? saved.progress : ''}" id="cumul_${task.id}" oninput="checkConflict(${task.id})" class="w-full p-1 border rounded text-xs bg-white placeholder-gray-400" placeholder="${currentActualPct.toFixed(1)}"></div>
-                            <div><label class="text-[10px] font-bold">ปริมาณ (${task.unit})</label><input type="number" value="${saved.qty || ''}" id="qty_${task.id}" oninput="checkConflict(${task.id})" class="w-full p-1 border rounded text-xs bg-white"></div>
+                            <div><label class="text-[10px] font-bold">% สะสมวันนี้</label><input type="number" value="${displayProg}" id="cumul_${task.id}" oninput="checkConflict(${task.id})" class="w-full p-1 border rounded text-xs bg-white placeholder-gray-400" placeholder="${currentActualPct.toFixed(1)}"></div>
+                            <div><label class="text-[10px] font-bold">ปริมาณ (${task.unit})</label><input type="number" value="${displayQty}" id="qty_${task.id}" oninput="checkConflict(${task.id})" class="w-full p-1 border rounded text-xs bg-white"></div>
                         </div>
                     `;
                 } else {
                     inputHtml = `
                         <div class="grid grid-cols-2 gap-2 bg-gray-50 p-2 rounded border">
                             <div><label class="text-[10px] font-bold">% ทำเพิ่มวันนี้</label><input type="number" id="prog_${task.id}" oninput="checkConflict(${task.id})" class="w-full p-1.5 border rounded text-xs bg-white"></div>
-                            <div><label class="text-[10px] font-bold">% สะสมถึงวันนี้</label><input type="number" value="${saved.progress !== '' ? saved.progress : ''}" id="cumul_${task.id}" oninput="checkConflict(${task.id})" class="w-full p-1.5 border rounded text-xs bg-white placeholder-gray-400" placeholder="${currentActualPct.toFixed(1)}"></div>
+                            <div><label class="text-[10px] font-bold">% สะสมวันนี้</label><input type="number" value="${displayProg}" id="cumul_${task.id}" oninput="checkConflict(${task.id})" class="w-full p-1.5 border rounded text-xs bg-white placeholder-gray-400" placeholder="${currentActualPct.toFixed(1)}"></div>
                         </div>
                     `;
                 }
                 div.innerHTML = `
                     <div class="flex justify-between font-bold text-sm mb-1">
-                        <span>${task.name} <button onclick="openTaskHistoryModal(${task.id})" class="ml-2 text-xs text-blue-500 underline font-normal">📊 ดูประวัติ/กราฟ</button></span>
+                        <span>${task.name} <button onclick="openTaskHistoryModal(${task.id})" class="ml-2 text-xs text-blue-500 underline font-normal">📊 ดูประวัติ/แก้ไข</button></span>
                         <div class="flex gap-1 text-xs">
                             <span class="bg-gray-100 text-gray-700 px-2 py-0.5 rounded font-semibold border">W: ${task.weight.toFixed(2)}%</span>
-                            <span class="bg-green-100 text-green-800 px-2 py-0.5 rounded font-semibold border border-green-200">ก้าวหน้าปัจจุบัน: ${currentActualPct.toFixed(1)}%</span>
+                            <span class="bg-green-100 text-green-800 px-2 py-0.5 rounded font-semibold border border-green-200">สะสมล่าสุด: ${currentActualPct.toFixed(1)}%</span>
                         </div>
                     </div>
                     ${inputHtml}
                     <div id="warn_${task.id}" class="text-[11px] text-red-500 hidden font-bold">⚠️ เลือกกรอกแค่ช่องเดียว! ห้ามกรอกช่อง "เพิ่มวันนี้" คู่กับ "สะสม"</div>
-                    <textarea id="remark_${task.id}" class="w-full p-2 border rounded text-xs text-gray-600 bg-gray-50" placeholder="ระบุรายละเอียดหน้างาน หรือหมายเหตุเพิ่มเติม...">${saved.remark || ''}</textarea>
+                    <textarea id="remark_${task.id}" class="w-full p-2 border rounded text-xs text-gray-600 bg-gray-50" placeholder="ระบุรายละเอียดหน้างาน หรือหมายเหตุเพิ่มเติม...">${displayRem}</textarea>
                     <p class="text-[11px] text-gray-500 font-semibold bg-blue-50 p-1.5 rounded inline-block">📌 แผนสะสมถึงวันนี้ควรได้: <span class="text-blue-600 font-bold">${taskPlanPct.toFixed(1)}%</span></p>
                 `;
                 container.appendChild(div);
@@ -499,34 +546,53 @@
 
         window.checkConflict = function(taskId) {
             const prog = document.getElementById(`prog_${taskId}`), cumul = document.getElementById(`cumul_${taskId}`), qty = document.getElementById(`qty_${taskId}`);
-            let filled = (prog && prog.value) ? 1:0; filled += (cumul && cumul.value) ? 1:0; filled += (qty && qty.value) ? 1:0;
+            let filled = (prog && prog.value !== '') ? 1:0; filled += (cumul && cumul.value !== '') ? 1:0; filled += (qty && qty.value !== '') ? 1:0;
             document.getElementById(`warn_${taskId}`).style.display = filled > 1 ? 'block' : 'none';
         }
 
         document.getElementById('btnSaveProgress').addEventListener('click', async () => {
             const p = projects[currentProjectId], selDate = document.getElementById('updateDateInput').value;
-            let dayRec = {}, hasErr = false;
+            let dayRec = { ...(p.history[selDate] || {}) };
+            let hasErr = false, abortSave = false;
 
-            p.tasks.forEach(task => {
+            for(let i=0; i<p.tasks.length; i++) {
+                let task = p.tasks[i];
                 const progEl = document.getElementById(`prog_${task.id}`), cumulEl = document.getElementById(`cumul_${task.id}`), qtyEl = document.getElementById(`qty_${task.id}`), remEl = document.getElementById(`remark_${task.id}`);
-                let filled = (progEl && progEl.value)?1:0; filled += (cumulEl && cumulEl.value)?1:0; filled += (qtyEl && qtyEl.value)?1:0;
-                if(filled > 1) hasErr = true;
+                
+                let filled = (progEl && progEl.value !== '')?1:0; filled += (cumulEl && cumulEl.value !== '')?1:0; filled += (qtyEl && qtyEl.value !== '')?1:0;
+                if(filled > 1) { hasErr = true; break; }
 
-                let finalProg = getTaskActualPct(p, task.id, selDate), finalQty = 0; // default to existing
+                let currentRem = remEl ? remEl.value.trim() : '';
+                
+                // ไม่บันทึกขยะทับลงไป ถ้ายูสเซอร์ไม่ได้แตะต้องฟิลด์อะไรเลยในวันนี้ (ประหยัดโควต้าและกันเลข 0)
+                if (filled === 0 && currentRem === '' && !p.history[selDate]?.[task.id]) { continue; }
+
+                let finalProg = getTaskActualPct(p, task.id, selDate), finalQty = 0;
+                let prevDates = Object.keys(p.history||{}).sort().filter(d => d < selDate);
+                let prevCumul = prevDates.length > 0 ? (p.history[prevDates[prevDates.length-1]][task.id]?.progress || 0) : 0;
+
                 if (cumulEl && cumulEl.value !== '') { finalProg = parseFloat(cumulEl.value); finalQty = task.hasQty ? (finalProg/100)*task.totalQty : 0; }
                 else if (qtyEl && qtyEl.value !== '' && task.totalQty>0) { finalQty = parseFloat(qtyEl.value); finalProg = (finalQty/task.totalQty)*100; }
                 else if (progEl && progEl.value !== '') {
-                    // ถ้ากรอกเปอร์เซ็นต์รายวัน ให้ไปเอาสะสมของวันก่อนหน้ามาบวกเพิ่ม
-                    let prevDates = Object.keys(p.history||{}).sort().filter(d => d < selDate);
-                    let prevCumul = prevDates.length > 0 ? (p.history[prevDates[prevDates.length-1]][task.id]?.progress || 0) : 0;
                     finalProg = prevCumul + parseFloat(progEl.value);
                     finalQty = task.hasQty ? (finalProg/100)*task.totalQty : 0;
-                } 
-                
-                dayRec[task.id] = { progress: Math.min(100, finalProg), qty: finalQty, remark: remEl ? remEl.value : '' };
-            });
+                } else if (p.history[selDate]?.[task.id]) {
+                    finalProg = p.history[selDate][task.id].progress;
+                    finalQty = p.history[selDate][task.id].qty;
+                }
 
+                if (filled > 0 && finalProg < prevCumul) {
+                    if(!confirm(`⚠️ แจ้งเตือนตรวจพบความผิดปกติ!\n\nงาน "${task.name}"\nคุณกำลังบันทึก % สะสม (${finalProg.toFixed(1)}%) ซึ่งน้อยกว่ายอดสะสมของวันก่อนหน้า (${prevCumul.toFixed(1)}%)\n\nคุณต้องการแก้ไข % สะสมของงานนี้ให้ลดลงใช่หรือไม่?`)) {
+                        abortSave = true; break;
+                    }
+                }
+                
+                dayRec[task.id] = { progress: Math.min(100, finalProg), qty: finalQty, remark: currentRem };
+            }
+
+            if(abortSave) return;
             if(hasErr) { showToast('ข้อมูลซ้ำซ้อน โปรดกรอกแค่ 1 ช่องต่อ 1 งาน', 'error'); return; }
+            
             const history = { ...(p.history || {}) }; history[selDate] = dayRec;
             try {
                 await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'projects', currentProjectId), { history });
@@ -566,9 +632,9 @@
                 let planPct = calculateTaskPlanPct(t, todayStr);
                 let actualPct = getTaskActualPct(p, t.id, todayStr);
                 
-                let barColor = 'bg-green-500'; // ตามแผน
-                if (actualPct < planPct - 0.5) barColor = 'bg-red-500'; // ช้ากว่าแผน
-                else if (actualPct > planPct + 0.5) barColor = 'bg-blue-800'; // เร็วกว่าแผน
+                let barColor = 'bg-green-500'; 
+                if (actualPct < planPct - 0.5) barColor = 'bg-red-500'; 
+                else if (actualPct > planPct + 0.5) barColor = 'bg-blue-800'; 
 
                 let tooltipTxt = `${t.name}\nเริ่ม: ${t.start} | สิ้นสุด: ${t.end}\nแผนงาน: ${planPct.toFixed(1)}% | ทำได้จริง: ${actualPct.toFixed(1)}%`;
 
@@ -576,9 +642,7 @@
                     <div class="flex items-center text-xs bg-white p-2 border rounded shadow-sm hover:bg-gray-50">
                         <div class="w-44 font-bold truncate pr-2 text-gray-700 tooltip-custom cursor-help" data-tooltip="${tooltipTxt}">${t.name}</div>
                         <div class="flex-1 h-5 relative rounded tooltip-custom cursor-help" data-tooltip="${tooltipTxt}">
-                            <!-- เส้นแผนงาน (เทาอ่อน) -->
                             <div class="absolute top-0 bottom-0 bg-gray-200 rounded-md" style="left: ${leftPct}%; width: ${widthPct}%;"></div>
-                            <!-- เส้นความก้าวหน้าจริง (ทับลงไปตาม % ที่ทำได้) -->
                             <div class="absolute top-0 bottom-0 ${barColor} rounded-md shadow-sm" style="left: ${leftPct}%; width: ${(widthPct * actualPct) / 100}%;"></div>
                         </div>
                     </div>
@@ -621,7 +685,6 @@
                 p.tasks.forEach(t => { planSum += calculateTaskPlanPct(t, dStr) * (t.weight/100); });
                 finalPlannedData.push(parseFloat(Math.min(100, planSum).toFixed(2)));
 
-                // Calculate Actual at this date
                 if(historyDates.includes(dStr)) {
                     let totalAct = 0;
                     p.tasks.forEach(t => { totalAct += (p.history[dStr][t.id]?.progress || 0) * (t.weight/100); });

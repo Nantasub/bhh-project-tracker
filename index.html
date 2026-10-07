@@ -499,8 +499,79 @@
             try {
                 await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'projects', currentProjectId), { history: p.history });
                 showToast('แก้ไขประวัติสำเร็จ');
-                // renderWorkspace จะทำให้อัปเดตกราฟหลักด้วย และจะโหลดเปิดป๊อปอัปให้ใหม่ถ้าต้องการ
+                openTaskHistoryModal(taskId); 
+                renderWorkspace(); 
             } catch(e) { showToast('ผิดพลาด', 'error'); }
+        }
+
+        window.renderWorkspace = function() {
+            const container = document.getElementById('taskUpdateList'); container.innerHTML = '';
+            const p = projects[currentProjectId];
+            const selectedDate = document.getElementById('updateDateInput').value;
+            
+            if(!p || !p.tasks || p.tasks.length === 0) {
+                container.innerHTML = '<p class="text-gray-400 italic text-sm text-center py-4">กรุณาเพิ่มรายการแผนงาน (WBS) เพื่อเริ่มบันทึก</p>';
+                renderSCurve(); // Clear the chart
+                return;
+            }
+
+            const savedDataForDate = (p.history || {})[selectedDate] || null;
+
+            p.tasks.forEach(task => {
+                const saved = savedDataForDate ? savedDataForDate[task.id] : null;
+                
+                let displayProg = saved && saved.progress !== undefined ? saved.progress : '';
+                let displayQty = saved && saved.qty !== undefined ? saved.qty : '';
+                let displayRem = saved && saved.remark !== undefined ? saved.remark : '';
+
+                let taskPlanPct = calculateTaskPlanPct(task, selectedDate);
+                let currentActualPct = getTaskActualPct(p, task.id, selectedDate);
+
+                const div = document.createElement('div'); div.className = "p-4 bg-white border rounded shadow-sm space-y-3 relative";
+                
+                let inputHtml = '';
+                if(task.hasQty) {
+                    inputHtml = `
+                        <div class="grid grid-cols-3 gap-2 bg-gray-50 p-2 rounded border">
+                            <div><label class="text-[10px] font-bold">% ทำเพิ่มวันนี้</label><input type="number" id="prog_${task.id}" oninput="checkConflict(${task.id})" class="w-full p-1 border rounded text-xs bg-white"></div>
+                            <div><label class="text-[10px] font-bold">% สะสมวันนี้</label><input type="number" value="${displayProg}" id="cumul_${task.id}" oninput="checkConflict(${task.id})" class="w-full p-1 border rounded text-xs bg-white placeholder-gray-400" placeholder="${currentActualPct.toFixed(1)}"></div>
+                            <div><label class="text-[10px] font-bold">ปริมาณ (${task.unit})</label><input type="number" value="${displayQty}" id="qty_${task.id}" oninput="checkConflict(${task.id})" class="w-full p-1 border rounded text-xs bg-white"></div>
+                        </div>
+                    `;
+                } else {
+                    inputHtml = `
+                        <div class="grid grid-cols-2 gap-2 bg-gray-50 p-2 rounded border">
+                            <div><label class="text-[10px] font-bold">% ทำเพิ่มวันนี้</label><input type="number" id="prog_${task.id}" oninput="checkConflict(${task.id})" class="w-full p-1.5 border rounded text-xs bg-white"></div>
+                            <div><label class="text-[10px] font-bold">% สะสมวันนี้</label><input type="number" value="${displayProg}" id="cumul_${task.id}" oninput="checkConflict(${task.id})" class="w-full p-1.5 border rounded text-xs bg-white placeholder-gray-400" placeholder="${currentActualPct.toFixed(1)}"></div>
+                        </div>
+                    `;
+                }
+                div.innerHTML = `
+                    <div class="flex justify-between font-bold text-sm mb-1">
+                        <span>${task.name} <button onclick="openTaskHistoryModal(${task.id})" class="ml-2 text-xs text-blue-500 underline font-normal">📊 ดูประวัติ/แก้ไข</button></span>
+                        <div class="flex gap-1 text-xs">
+                            <span class="bg-gray-100 text-gray-700 px-2 py-0.5 rounded font-semibold border">W: ${task.weight.toFixed(2)}%</span>
+                            <span class="bg-green-100 text-green-800 px-2 py-0.5 rounded font-semibold border border-green-200">สะสมล่าสุด: ${currentActualPct.toFixed(1)}%</span>
+                        </div>
+                    </div>
+                    ${inputHtml}
+                    <div id="warn_${task.id}" class="text-[11px] text-red-500 hidden font-bold">⚠️ เลือกกรอกแค่ช่องเดียว! ห้ามกรอกช่อง "เพิ่มวันนี้" คู่กับ "สะสม"</div>
+                    <textarea id="remark_${task.id}" class="w-full p-2 border rounded text-xs text-gray-600 bg-gray-50" placeholder="ระบุรายละเอียดหน้างาน หรือหมายเหตุเพิ่มเติม...">${displayRem}</textarea>
+                    
+                    <div class="flex justify-between items-center mt-2 pt-2 border-t border-gray-100">
+                        <p class="text-[11px] text-gray-500 font-semibold bg-blue-50 p-1.5 rounded inline-block">📌 แผนสะสมถึงวันนี้ควรได้: <span class="text-blue-600 font-bold">${taskPlanPct.toFixed(1)}%</span></p>
+                        <button onclick="saveSingleTaskProgress(${task.id})" class="bg-green-600 text-white px-4 py-1.5 rounded text-xs font-bold hover:bg-green-700 shadow flex items-center gap-1">💾 บันทึกงานนี้</button>
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+            renderSCurve();
+        }
+
+        window.checkConflict = function(taskId) {
+            const prog = document.getElementById(`prog_${taskId}`), cumul = document.getElementById(`cumul_${taskId}`), qty = document.getElementById(`qty_${taskId}`);
+            let filled = (prog && prog.value !== '') ? 1:0; filled += (cumul && cumul.value !== '') ? 1:0; filled += (qty && qty.value !== '') ? 1:0;
+            document.getElementById(`warn_${taskId}`).style.display = filled > 1 ? 'block' : 'none';
         }
 
         // --- รื้อระบบ Save ใหม่เป็นปุ่มแยกรายไอเทม ---
@@ -568,71 +639,6 @@
             }
         };
 
-        window.renderWorkspace = function() {
-            const container = document.getElementById('taskUpdateList'); container.innerHTML = '';
-            const p = projects[currentProjectId];
-            const selectedDate = document.getElementById('updateDateInput').value;
-            if(!p || !p.tasks || p.tasks.length === 0) return;
-
-            const savedDataForDate = (p.history || {})[selectedDate] || null;
-
-            p.tasks.forEach(task => {
-                const saved = savedDataForDate ? savedDataForDate[task.id] : null;
-                
-                let displayProg = saved && saved.progress !== undefined ? saved.progress : '';
-                let displayQty = saved && saved.qty !== undefined ? saved.qty : '';
-                let displayRem = saved && saved.remark !== undefined ? saved.remark : '';
-
-                let taskPlanPct = calculateTaskPlanPct(task, selectedDate);
-                let currentActualPct = getTaskActualPct(p, task.id, selectedDate);
-
-                const div = document.createElement('div'); div.className = "p-4 bg-white border rounded shadow-sm space-y-3 relative";
-                
-                let inputHtml = '';
-                if(task.hasQty) {
-                    inputHtml = `
-                        <div class="grid grid-cols-3 gap-2 bg-gray-50 p-2 rounded border">
-                            <div><label class="text-[10px] font-bold">% ทำเพิ่มวันนี้</label><input type="number" id="prog_${task.id}" oninput="checkConflict(${task.id})" class="w-full p-1 border rounded text-xs bg-white"></div>
-                            <div><label class="text-[10px] font-bold">% สะสมวันนี้</label><input type="number" value="${displayProg}" id="cumul_${task.id}" oninput="checkConflict(${task.id})" class="w-full p-1 border rounded text-xs bg-white placeholder-gray-400" placeholder="${currentActualPct.toFixed(1)}"></div>
-                            <div><label class="text-[10px] font-bold">ปริมาณ (${task.unit})</label><input type="number" value="${displayQty}" id="qty_${task.id}" oninput="checkConflict(${task.id})" class="w-full p-1 border rounded text-xs bg-white"></div>
-                        </div>
-                    `;
-                } else {
-                    inputHtml = `
-                        <div class="grid grid-cols-2 gap-2 bg-gray-50 p-2 rounded border">
-                            <div><label class="text-[10px] font-bold">% ทำเพิ่มวันนี้</label><input type="number" id="prog_${task.id}" oninput="checkConflict(${task.id})" class="w-full p-1.5 border rounded text-xs bg-white"></div>
-                            <div><label class="text-[10px] font-bold">% สะสมวันนี้</label><input type="number" value="${displayProg}" id="cumul_${task.id}" oninput="checkConflict(${task.id})" class="w-full p-1.5 border rounded text-xs bg-white placeholder-gray-400" placeholder="${currentActualPct.toFixed(1)}"></div>
-                        </div>
-                    `;
-                }
-                div.innerHTML = `
-                    <div class="flex justify-between font-bold text-sm mb-1">
-                        <span>${task.name} <button onclick="openTaskHistoryModal(${task.id})" class="ml-2 text-xs text-blue-500 underline font-normal">📊 ดูประวัติ/แก้ไข</button></span>
-                        <div class="flex gap-1 text-xs">
-                            <span class="bg-gray-100 text-gray-700 px-2 py-0.5 rounded font-semibold border">W: ${task.weight.toFixed(2)}%</span>
-                            <span class="bg-green-100 text-green-800 px-2 py-0.5 rounded font-semibold border border-green-200">สะสมล่าสุด: ${currentActualPct.toFixed(1)}%</span>
-                        </div>
-                    </div>
-                    ${inputHtml}
-                    <div id="warn_${task.id}" class="text-[11px] text-red-500 hidden font-bold">⚠️ เลือกกรอกแค่ช่องเดียว! ห้ามกรอกช่อง "เพิ่มวันนี้" คู่กับ "สะสม"</div>
-                    <textarea id="remark_${task.id}" class="w-full p-2 border rounded text-xs text-gray-600 bg-gray-50" placeholder="ระบุรายละเอียดหน้างาน หรือหมายเหตุเพิ่มเติม...">${displayRem}</textarea>
-                    
-                    <div class="flex justify-between items-center mt-2 pt-2 border-t border-gray-100">
-                        <p class="text-[11px] text-gray-500 font-semibold bg-blue-50 p-1.5 rounded inline-block">📌 แผนสะสมถึงวันนี้ควรได้: <span class="text-blue-600 font-bold">${taskPlanPct.toFixed(1)}%</span></p>
-                        <button onclick="saveSingleTaskProgress(${task.id})" class="bg-green-600 text-white px-4 py-1.5 rounded text-xs font-bold hover:bg-green-700 shadow flex items-center gap-1">💾 บันทึกงานนี้</button>
-                    </div>
-                `;
-                container.appendChild(div);
-            });
-            renderSCurve();
-        }
-
-        window.checkConflict = function(taskId) {
-            const prog = document.getElementById(`prog_${taskId}`), cumul = document.getElementById(`cumul_${taskId}`), qty = document.getElementById(`qty_${taskId}`);
-            let filled = (prog && prog.value !== '') ? 1:0; filled += (cumul && cumul.value !== '') ? 1:0; filled += (qty && qty.value !== '') ? 1:0;
-            document.getElementById(`warn_${taskId}`).style.display = filled > 1 ? 'block' : 'none';
-        }
-
         function renderGantt() {
             const container = document.getElementById('ganttContainer'); container.innerHTML = '';
             const p = projects[currentProjectId];
@@ -686,7 +692,18 @@
 
         function renderSCurve() {
             const p = projects[currentProjectId];
-            if(!p || !p.tasks || p.tasks.length === 0) return;
+            
+            // ป้องกันกราฟค้างถ้าโปรเจกต์ว่างเปล่า
+            if(!p || !p.tasks || p.tasks.length === 0) {
+                document.getElementById('summaryActualText').innerText = '0%';
+                document.getElementById('summaryPlannedText').innerText = '0%';
+                const statusText = document.getElementById('analysisStatusText'), analysisBox = document.getElementById('analysisBox');
+                statusText.innerText = 'ยังไม่มีข้อมูลแผนงาน (รอเพิ่ม WBS)';
+                statusText.className = 'text-lg font-bold text-gray-500';
+                analysisBox.className = "mb-6 p-4 rounded-lg border bg-gray-50 border-gray-200 flex flex-col md:flex-row justify-between items-center gap-4";
+                if(chartInstance) { chartInstance.destroy(); chartInstance = null; }
+                return;
+            }
 
             let minDate = new Date(p.tasks[0].start), maxDate = new Date(p.tasks[0].end);
             p.tasks.forEach(t => {

@@ -11,14 +11,18 @@
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f3f4f6; }
         .card { background: white; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); padding: 20px; margin-bottom: 20px; }
+        .tooltip-custom { position: relative; }
+        .tooltip-custom:hover::after {
+            content: attr(data-tooltip); position: absolute; left: 50%; bottom: 100%;
+            transform: translateX(-50%); background: rgba(0,0,0,0.8); color: white;
+            padding: 4px 8px; border-radius: 4px; font-size: 11px; white-space: pre-wrap; z-index: 10;
+            margin-bottom: 5px; width: max-content; max-width: 250px; text-align: center;
+        }
     </style>
 </head>
 <body class="p-4 md:p-8 max-w-6xl mx-auto text-gray-800 relative">
 
-    <!-- Toast Notification -->
-    <div id="toast" class="fixed top-4 right-4 text-white px-6 py-3 rounded shadow-lg transition-opacity duration-300 opacity-0 pointer-events-none z-50 font-bold">
-        Message
-    </div>
+    <div id="toast" class="fixed top-4 right-4 text-white px-6 py-3 rounded shadow-lg transition-opacity duration-300 opacity-0 pointer-events-none z-50 font-bold"></div>
 
     <!-- Header -->
     <div class="flex justify-between items-center mb-6 flex-wrap gap-2">
@@ -36,25 +40,23 @@
         </div>
     </div>
 
-    <!-- VIEW 1: HOME / PROJECT LIST -->
+    <!-- VIEW 1: HOME -->
     <div id="homeView">
         <div class="card flex flex-col md:flex-row justify-between items-center gap-4 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100">
             <div>
                 <h2 class="text-lg font-bold text-blue-900">รายการโครงการทั้งหมด</h2>
                 <p class="text-sm text-gray-600">เลือกโครงการเพื่อเข้าจัดการแผนงาน ติดตาม S-Curve และอัปเดตหน้างาน</p>
             </div>
-            <button onclick="openCreateModal()" class="bg-blue-600 text-white px-5 py-2.5 rounded-lg font-bold hover:bg-blue-700 transition shadow flex items-center gap-2">
+            <button onclick="openCreateModal()" class="bg-blue-600 text-white px-5 py-2.5 rounded-lg font-bold hover:bg-blue-700 shadow flex items-center gap-2">
                 <span>+ สร้างโครงการใหม่</span>
             </button>
         </div>
-
         <div id="projectGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
     </div>
 
-    <!-- VIEW 2: PROJECT DETAIL / WORKSPACE -->
+    <!-- VIEW 2: DETAIL -->
     <div id="detailView" style="display: none;">
         
-        <!-- Project Info Bar -->
         <div class="card bg-white border-l-4 border-blue-600 flex flex-wrap justify-between items-center gap-4">
             <div>
                 <span class="text-xs bg-blue-100 text-blue-800 px-2.5 py-1 rounded font-bold">ชื่อโครงการ</span>
@@ -66,18 +68,13 @@
             </div>
         </div>
 
-        <!-- Gantt Chart View -->
         <div class="card">
-            <h2 class="text-lg font-bold mb-4 text-gray-700">แผนผังโครงการ (Gantt Chart รายเดือน / 4 สัปดาห์)</h2>
-            <div class="overflow-x-auto">
-                <div id="ganttContainer" class="min-w-[800px]"></div>
-            </div>
+            <h2 class="text-lg font-bold mb-4 text-gray-700">แผนผังโครงการ (Gantt Chart)</h2>
+            <div class="overflow-x-auto"><div id="ganttContainer" class="min-w-[800px]"></div></div>
         </div>
 
-        <!-- S-Curve Chart & Status Analysis -->
         <div class="card">
-            <h2 class="text-lg font-bold mb-4 text-gray-700">กราฟแสดงความคืบหน้า (S-Curve & Earned Schedule)</h2>
-            
+            <h2 class="text-lg font-bold mb-4 text-gray-700">กราฟแสดงความคืบหน้า (S-Curve)</h2>
             <div id="analysisBox" class="mb-6 p-4 rounded-lg border bg-blue-50 border-blue-200 flex flex-col md:flex-row justify-between items-center gap-4">
                 <div>
                     <p class="text-sm font-semibold text-gray-600">สถานะโครงการเทียบกับแผนงาน:</p>
@@ -88,27 +85,22 @@
                     <p class="text-xl font-bold"><span id="summaryActualText" class="text-green-600">0%</span> / <span id="summaryPlannedText" class="text-gray-500">0%</span></p>
                 </div>
             </div>
-
             <canvas id="sCurveChart" height="110"></canvas>
         </div>
 
-        <!-- Workspace Grid -->
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            
             <!-- Left: Update Progress -->
             <div class="card border-l-4 border-green-500 h-fit">
                 <h2 class="text-lg font-bold mb-2 text-green-700">อัปเดตงานประจำวัน (หน้างาน)</h2>
-                <p class="text-xs text-gray-500 mb-4">เลือกวันที่ต้องการบันทึก และสามารถแก้ไขย้อนหลังได้</p>
-                
-                <div class="mb-4 bg-gray-50 p-3 rounded border">
-                    <label class="block text-xs font-bold text-gray-700 mb-1">วันที่บันทึกผลงาน:</label>
-                    <input type="date" id="updateDateInput" class="w-full p-2 border rounded border-gray-300 text-sm bg-white" onchange="renderWorkspace()">
+                <div class="mb-4 bg-gray-50 p-3 rounded border flex justify-between items-center">
+                    <div class="flex-1">
+                        <label class="block text-xs font-bold text-gray-700 mb-1">วันที่บันทึกผลงาน (แก้ไขย้อนหลังได้):</label>
+                        <input type="date" id="updateDateInput" class="w-full p-2 border rounded border-gray-300 text-sm bg-white" onchange="renderWorkspace()">
+                    </div>
                 </div>
-
                 <div id="taskUpdateList" class="space-y-4"></div>
-
-                <button id="btnSaveProgress" class="mt-6 w-full bg-green-600 text-white font-bold py-3 rounded-lg text-base hover:bg-green-700 transition shadow-md">
-                    บันทึกผลงานขึ้นระบบ Cloud
+                <button id="btnSaveProgress" class="mt-6 w-full bg-green-600 text-white font-bold py-3 rounded-lg text-base hover:bg-green-700 shadow-md">
+                    บันทึกผลงาน
                 </button>
             </div>
 
@@ -119,87 +111,84 @@
                         <h2 id="wbsFormTitle" class="text-lg font-bold text-gray-700">เพิ่มรายการงานย่อย (WBS)</h2>
                         <button id="btnCancelEdit" style="display: none;" onclick="resetWbsForm()" class="text-xs bg-red-100 text-red-600 px-2 py-1 rounded font-bold">ยกเลิกแก้ไข</button>
                     </div>
-                    
                     <input type="hidden" id="editTaskId" value="">
-
                     <div class="space-y-3">
                         <div>
                             <label class="block text-xs font-bold mb-1 text-gray-600">ชื่องานย่อย</label>
-                            <input type="text" id="taskName" placeholder="เช่น งานโครงสร้าง..." class="w-full p-2 border rounded border-gray-300 text-sm">
+                            <input type="text" id="taskName" class="w-full p-2 border rounded text-sm">
                         </div>
                         <div class="grid grid-cols-2 gap-2">
                             <div>
                                 <label class="block text-xs font-bold mb-1 text-gray-600">มูลค่างาน (บาท)</label>
-                                <input type="number" id="taskBudget" placeholder="0" oninput="calculateWeightPreview()" class="w-full p-2 border rounded border-gray-300 text-sm">
+                                <input type="number" id="taskBudget" oninput="calculateWeightPreview()" class="w-full p-2 border rounded text-sm">
                             </div>
                             <div>
                                 <label class="block text-xs font-bold mb-1 text-gray-600">น้ำหนักคิดเป็น (%)</label>
-                                <input type="text" id="taskWeightPreview" readonly placeholder="คำนวณอัตโนมัติ" class="w-full p-2 border rounded border-gray-200 bg-gray-100 text-sm font-semibold text-blue-600">
+                                <input type="text" id="taskWeightPreview" readonly class="w-full p-2 border rounded bg-gray-100 text-sm font-semibold text-blue-600">
                             </div>
                         </div>
-
                         <div class="grid grid-cols-2 gap-2">
                             <div>
-                                <label class="block text-xs font-bold mb-1 text-gray-600">วันที่เริ่มงาน</label>
-                                <input type="date" id="taskStart" class="w-full p-2 border rounded border-gray-300 text-sm">
+                                <label class="block text-xs font-bold mb-1 text-gray-600">เริ่มงาน</label>
+                                <input type="date" id="taskStart" class="w-full p-2 border rounded text-sm">
                             </div>
                             <div>
-                                <label class="block text-xs font-bold mb-1 text-gray-600">วันที่สิ้นสุดงาน</label>
-                                <input type="date" id="taskEnd" class="w-full p-2 border rounded border-gray-300 text-sm">
+                                <label class="block text-xs font-bold mb-1 text-gray-600">สิ้นสุดงาน</label>
+                                <input type="date" id="taskEnd" class="w-full p-2 border rounded text-sm">
                             </div>
                         </div>
-
                         <div class="pt-2 border-t">
                             <label class="flex items-center gap-2 cursor-pointer">
                                 <input type="checkbox" id="hasQuantityCheck" onchange="toggleQuantityInput()" class="w-4 h-4 text-blue-600 rounded">
-                                <span class="text-xs font-bold text-gray-700">ระบุปริมาณงาน/วัสดุ (เช่น ความยาว)</span>
+                                <span class="text-xs font-bold text-gray-700">ระบุปริมาณงาน/วัสดุ</span>
                             </label>
                         </div>
-
                         <div id="quantitySettingBox" class="grid grid-cols-2 gap-2" style="display: none;">
                             <div>
-                                <label class="block text-xs font-bold mb-1 text-gray-600">ปริมาณรวมทั้งหมด</label>
-                                <input type="number" id="taskTotalQty" placeholder="เช่น 500" class="w-full p-2 border rounded border-gray-300 text-sm">
+                                <label class="block text-xs font-bold mb-1 text-gray-600">ปริมาณรวม</label>
+                                <input type="number" id="taskTotalQty" class="w-full p-2 border rounded text-sm">
                             </div>
                             <div>
-                                <label class="block text-xs font-bold mb-1 text-gray-600">หน่วย (เช่น เมตร)</label>
-                                <input type="text" id="taskUnit" placeholder="เมตร" class="w-full p-2 border rounded border-gray-300 text-sm">
+                                <label class="block text-xs font-bold mb-1 text-gray-600">หน่วย</label>
+                                <input type="text" id="taskUnit" placeholder="เมตร" class="w-full p-2 border rounded text-sm">
                             </div>
                         </div>
-
-                        <button id="btnSaveTask" onclick="saveWbsTask()" class="w-full bg-gray-800 text-white p-2.5 rounded font-bold hover:bg-gray-900 transition text-sm">
-                            + เพิ่มรายการงานย่อย
-                        </button>
+                        <button onclick="saveWbsTask()" class="w-full bg-gray-800 text-white p-2.5 rounded font-bold hover:bg-gray-900 text-sm">+ เพิ่มงานย่อย</button>
                     </div>
                 </div>
-
                 <div class="card">
                     <h2 class="text-md font-bold mb-3 text-gray-700">รายการแผนงาน (WBS)</h2>
                     <div id="wbsListContainer" class="space-y-2 max-h-80 overflow-y-auto pr-1"></div>
                 </div>
             </div>
-
         </div>
     </div>
 
     <!-- MODAL: CREATE PROJECT -->
-    <div id="createProjectModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50" style="display: none;">
+    <div id="createProjectModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 hidden">
         <div class="bg-white rounded-lg p-6 max-w-md w-full shadow-xl">
             <h3 class="text-lg font-bold text-blue-900 mb-4">สร้างโครงการใหม่</h3>
             <div class="space-y-4">
-                <div>
-                    <label class="block text-xs font-bold mb-1 text-gray-600">ชื่อโครงการ</label>
-                    <input type="text" id="modalProjName" class="w-full p-2 border rounded border-gray-300">
-                </div>
-                <div>
-                    <label class="block text-xs font-bold mb-1 text-gray-600">มูลค่าโครงการรวม (บาท)</label>
-                    <input type="number" id="modalProjBudget" class="w-full p-2 border rounded border-gray-300">
-                </div>
+                <div><label class="block text-xs font-bold mb-1">ชื่อโครงการ</label><input type="text" id="modalProjName" class="w-full p-2 border rounded"></div>
+                <div><label class="block text-xs font-bold mb-1">มูลค่าโครงการรวม (บาท)</label><input type="number" id="modalProjBudget" class="w-full p-2 border rounded"></div>
             </div>
             <div class="flex justify-end gap-2 mt-6">
                 <button onclick="closeCreateModal()" class="px-4 py-2 bg-gray-200 rounded font-bold text-sm">ยกเลิก</button>
                 <button onclick="createProjectAction()" class="px-4 py-2 bg-blue-600 text-white rounded font-bold text-sm">บันทึก</button>
             </div>
+        </div>
+    </div>
+
+    <!-- MODAL: TASK HISTORY -->
+    <div id="taskHistoryModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 hidden">
+        <div class="bg-white rounded-lg p-6 max-w-2xl w-full shadow-xl max-h-[90vh] overflow-y-auto relative">
+            <button onclick="closeTaskHistoryModal()" class="absolute top-4 right-4 text-gray-500 hover:text-red-500 font-bold text-xl">&times;</button>
+            <h3 id="historyModalTitle" class="text-lg font-bold text-blue-900 mb-4">ประวัติและกราฟงานย่อย</h3>
+            
+            <div class="mb-4"><canvas id="taskHistoryChart" height="150"></canvas></div>
+            
+            <h4 class="font-bold text-sm text-gray-700 mb-2 border-b pb-1">รายการบันทึกย้อนหลัง</h4>
+            <div id="taskHistoryList" class="space-y-2 max-h-48 overflow-y-auto text-sm"></div>
         </div>
     </div>
 
@@ -226,11 +215,13 @@
         let projects = {};
         let currentProjectId = null;
         let chartInstance = null;
+        let taskHistoryChartInstance = null;
 
         window.showToast = function(message, type = 'success') {
             const toast = document.getElementById('toast');
             toast.textContent = message;
             toast.className = `fixed top-4 right-4 text-white px-6 py-3 rounded shadow-lg transition-opacity duration-300 z-50 font-bold ${type === 'error' ? 'bg-red-500' : 'bg-green-500'}`;
+            toast.classList.remove('opacity-0');
             setTimeout(() => { toast.classList.add('opacity-0'); }, 3000);
         }
 
@@ -243,7 +234,7 @@
                 listenToProjects();
             } catch (e) {
                 console.error(e);
-                showToast('เชื่อมต่อ Cloud ล้มเหลว', 'error');
+                showToast('ติดปัญหาการเข้าถึง Cloud โปรดเช็กกฎ Firebase Rules', 'error');
             }
         }
 
@@ -252,48 +243,33 @@
             const ref = collection(db, 'artifacts', appId, 'public', 'data', 'projects');
             onSnapshot(ref, (snapshot) => {
                 projects = {};
-                snapshot.forEach(docSnap => {
-                    projects[docSnap.id] = { id: docSnap.id, ...docSnap.data() };
-                });
-                renderHomeView();
-                if (currentProjectId && projects[currentProjectId]) {
-                    renderDetailView();
-                }
+                snapshot.forEach(docSnap => { projects[docSnap.id] = { id: docSnap.id, ...docSnap.data() }; });
+                if(currentProjectId && projects[currentProjectId]) renderDetailView();
+                else renderHomeView();
             }, (err) => {
                 console.error(err);
+                showToast('ถูกบล็อกการอ่านข้อมูล โปรดเช็ก Firebase Rules', 'error');
             });
         }
 
-        window.openCreateModal = function() {
-            document.getElementById('modalProjName').value = '';
-            document.getElementById('modalProjBudget').value = '';
-            document.getElementById('createProjectModal').style.display = 'flex';
-        }
-        window.closeCreateModal = function() { document.getElementById('createProjectModal').style.display = 'none'; }
+        window.openCreateModal = function() { document.getElementById('modalProjName').value = ''; document.getElementById('modalProjBudget').value = ''; document.getElementById('createProjectModal').classList.remove('hidden'); }
+        window.closeCreateModal = function() { document.getElementById('createProjectModal').classList.add('hidden'); }
 
         window.createProjectAction = async function() {
             if(!auth.currentUser) return;
             const name = document.getElementById('modalProjName').value.trim();
             const budget = parseFloat(document.getElementById('modalProjBudget').value);
-            if (!name || isNaN(budget) || budget <= 0) {
-                showToast('ข้อมูลไม่ถูกต้อง', 'error'); return;
-            }
+            if (!name || isNaN(budget) || budget <= 0) { showToast('ข้อมูลไม่ถูกต้อง', 'error'); return; }
             try {
                 const ref = await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'projects'), { name, budget, tasks: [], history: {} });
-                closeCreateModal();
-                showToast('สร้างโครงการสำเร็จ');
-                openProjectDetail(ref.id);
+                closeCreateModal(); showToast('สร้างโครงการสำเร็จ'); openProjectDetail(ref.id);
             } catch (e) { showToast('ผิดพลาด', 'error'); }
         }
 
         window.deleteProject = async function(id, event) {
             event.stopPropagation();
             if(!confirm('ลบโครงการ?')) return;
-            try {
-                await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'projects', id));
-                showToast('ลบสำเร็จ');
-                if(currentProjectId === id) backToHome();
-            } catch(e) {}
+            try { await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'projects', id)); showToast('ลบสำเร็จ'); } catch(e) {}
         }
 
         window.openProjectDetail = function(id) {
@@ -314,20 +290,37 @@
             renderHomeView();
         }
 
+        function calculateProjectStats(p) {
+            let overallProg = 0, endDateStr = 'ยังไม่มีแผน';
+            if(p.tasks && p.tasks.length > 0) {
+                let maxD = new Date(p.tasks[0].end);
+                p.tasks.forEach(t => { if(new Date(t.end) > maxD) maxD = new Date(t.end); });
+                endDateStr = maxD.toISOString().split('T')[0];
+                const historyDates = Object.keys(p.history || {}).sort();
+                if(historyDates.length > 0) {
+                    let lastRec = p.history[historyDates[historyDates.length-1]];
+                    p.tasks.forEach(t => { overallProg += ((lastRec[t.id]?.progress || 0) / 100) * t.weight; });
+                }
+            }
+            return { overallProg, endDateStr };
+        }
+
         function renderHomeView() {
-            const grid = document.getElementById('projectGrid');
-            grid.innerHTML = '';
+            const grid = document.getElementById('projectGrid'); grid.innerHTML = '';
             const keys = Object.keys(projects);
-            if(keys.length === 0) { grid.innerHTML = '<p class="text-gray-500 py-8">ไม่มีโครงการ</p>'; return; }
+            if(keys.length === 0) { grid.innerHTML = '<p class="text-gray-500 py-8 col-span-full">ยังไม่มีโครงการในระบบ</p>'; return; }
             keys.forEach(id => {
                 const p = projects[id];
+                const stats = calculateProjectStats(p);
                 const card = document.createElement('div');
                 card.className = "card bg-white border border-gray-200 hover:shadow-lg transition cursor-pointer relative";
                 card.onclick = () => openProjectDetail(id);
                 card.innerHTML = `
-                    <div class="absolute top-4 right-4"><button onclick="deleteProject('${id}', event)" class="text-red-400">🗑️</button></div>
+                    <div class="absolute top-4 right-4"><button onclick="deleteProject('${id}', event)" class="text-red-400 font-bold hover:text-red-600">🗑️</button></div>
+                    <span class="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded font-semibold">งานเสร็จไปแล้ว: ${stats.overallProg.toFixed(2)}%</span>
                     <h3 class="text-lg font-bold mt-2">${p.name}</h3>
-                    <p class="text-sm">มูลค่า: <span class="font-bold text-blue-600">${p.budget.toLocaleString()} บาท</span></p>
+                    <p class="text-sm text-gray-500">มูลค่า: <span class="font-bold text-blue-600">${p.budget.toLocaleString()} บาท</span></p>
+                    <p class="text-xs text-gray-400 mt-2">📅 กำหนดเสร็จ: <span class="font-bold text-gray-600">${stats.endDateStr}</span></p>
                 `;
                 grid.appendChild(card);
             });
@@ -338,71 +331,40 @@
             if(!p) return;
             document.getElementById('currentProjNameDisplay').innerText = p.name;
             document.getElementById('currentProjBudgetDisplay').innerText = p.budget.toLocaleString() + ' บาท';
-            renderGantt();
-            renderWbsList();
             renderWorkspace();
-            renderSCurve();
+            renderWbsList();
+            renderGantt();
         }
 
         window.calculateWeightPreview = function() {
-            const p = projects[currentProjectId];
-            const budget = parseFloat(document.getElementById('taskBudget').value) || 0;
+            const p = projects[currentProjectId], budget = parseFloat(document.getElementById('taskBudget').value) || 0;
             if(p && p.budget > 0) document.getElementById('taskWeightPreview').value = ((budget/p.budget)*100).toFixed(2) + '%';
         }
-
-        window.toggleQuantityInput = function() {
-            document.getElementById('quantitySettingBox').style.display = document.getElementById('hasQuantityCheck').checked ? 'grid' : 'none';
-        }
+        window.toggleQuantityInput = function() { document.getElementById('quantitySettingBox').style.display = document.getElementById('hasQuantityCheck').checked ? 'grid' : 'none'; }
 
         window.saveWbsTask = async function() {
             if(!auth.currentUser) return;
             const p = projects[currentProjectId];
-            const name = document.getElementById('taskName').value.trim();
-            const budget = parseFloat(document.getElementById('taskBudget').value);
-            const start = document.getElementById('taskStart').value;
-            const end = document.getElementById('taskEnd').value;
-            const editId = document.getElementById('editTaskId').value;
-            const hasQty = document.getElementById('hasQuantityCheck').checked;
-            const totalQty = hasQty ? parseFloat(document.getElementById('taskTotalQty').value) : 0;
-            const unit = hasQty ? document.getElementById('taskUnit').value.trim() : '';
+            const name = document.getElementById('taskName').value.trim(), budget = parseFloat(document.getElementById('taskBudget').value), start = document.getElementById('taskStart').value, end = document.getElementById('taskEnd').value, editId = document.getElementById('editTaskId').value, hasQty = document.getElementById('hasQuantityCheck').checked, totalQty = hasQty ? parseFloat(document.getElementById('taskTotalQty').value) : 0, unit = hasQty ? document.getElementById('taskUnit').value.trim() : '';
 
             if(!name || isNaN(budget) || !start || !end) { showToast('กรอกข้อมูลไม่ครบ', 'error'); return; }
-
             const weight = (budget / p.budget) * 100;
             let tasks = [...(p.tasks || [])];
-            if(editId) {
-                tasks = tasks.map(t => t.id == editId ? { ...t, name, budget, weight, start, end, hasQty, totalQty, unit } : t);
-            } else {
-                tasks.push({ id: Date.now(), name, budget, weight, start, end, hasQty, totalQty, unit });
-            }
+            if(editId) tasks = tasks.map(t => t.id == editId ? { ...t, name, budget, weight, start, end, hasQty, totalQty, unit } : t);
+            else tasks.push({ id: Date.now(), name, budget, weight, start, end, hasQty, totalQty, unit });
 
-            try {
-                await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'projects', currentProjectId), { tasks });
-                resetWbsForm(); showToast('บันทึกงานย่อยสำเร็จ');
-            } catch(e) {}
+            try { await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'projects', currentProjectId), { tasks }); resetWbsForm(); showToast('บันทึกงานย่อยสำเร็จ'); } catch(e) {}
         }
 
         window.resetWbsForm = function() {
             ['editTaskId','taskName','taskBudget','taskWeightPreview','taskStart','taskEnd','taskTotalQty','taskUnit'].forEach(id => document.getElementById(id).value = '');
-            document.getElementById('hasQuantityCheck').checked = false;
-            document.getElementById('quantitySettingBox').style.display = 'none';
-            document.getElementById('btnCancelEdit').style.display = 'none';
+            document.getElementById('hasQuantityCheck').checked = false; document.getElementById('quantitySettingBox').style.display = 'none'; document.getElementById('btnCancelEdit').style.display = 'none';
         }
 
         window.editWbsTask = function(taskId) {
             const task = projects[currentProjectId].tasks.find(t => t.id == taskId);
             if(!task) return;
-            document.getElementById('editTaskId').value = task.id;
-            document.getElementById('taskName').value = task.name;
-            document.getElementById('taskBudget').value = task.budget;
-            document.getElementById('taskWeightPreview').value = task.weight.toFixed(2) + '%';
-            document.getElementById('taskStart').value = task.start;
-            document.getElementById('taskEnd').value = task.end;
-            document.getElementById('hasQuantityCheck').checked = task.hasQty || false;
-            document.getElementById('quantitySettingBox').style.display = task.hasQty ? 'grid' : 'none';
-            document.getElementById('taskTotalQty').value = task.totalQty || '';
-            document.getElementById('taskUnit').value = task.unit || '';
-            document.getElementById('btnCancelEdit').style.display = 'inline-block';
+            document.getElementById('editTaskId').value = task.id; document.getElementById('taskName').value = task.name; document.getElementById('taskBudget').value = task.budget; document.getElementById('taskWeightPreview').value = task.weight.toFixed(2) + '%'; document.getElementById('taskStart').value = task.start; document.getElementById('taskEnd').value = task.end; document.getElementById('hasQuantityCheck').checked = task.hasQty || false; document.getElementById('quantitySettingBox').style.display = task.hasQty ? 'grid' : 'none'; document.getElementById('taskTotalQty').value = task.totalQty || ''; document.getElementById('taskUnit').value = task.unit || ''; document.getElementById('btnCancelEdit').style.display = 'inline-block';
         }
 
         window.deleteWbsTask = async function(taskId) {
@@ -418,9 +380,68 @@
             p.tasks.forEach(t => {
                 const div = document.createElement('div'); div.className = "flex justify-between items-center p-3 bg-white border rounded shadow-sm text-sm";
                 div.innerHTML = `<div><p class="font-bold">${t.name}</p><p class="text-xs text-gray-500">${t.budget.toLocaleString()} ฿ (${t.weight.toFixed(2)}%)</p></div>
-                <div><button onclick="editWbsTask(${t.id})" class="text-blue-600 bg-blue-50 px-2 py-1 rounded">แก้ไข</button> <button onclick="deleteWbsTask(${t.id})" class="text-red-600 bg-red-50 px-2 py-1 rounded">ลบ</button></div>`;
+                <div><button onclick="editWbsTask(${t.id})" class="text-blue-600 bg-blue-50 px-2 py-1 rounded font-bold">แก้ไข</button> <button onclick="deleteWbsTask(${t.id})" class="text-red-600 bg-red-50 px-2 py-1 rounded font-bold">ลบ</button></div>`;
                 container.appendChild(div);
             });
+        }
+
+        // --- TASK HISTORY MODAL ---
+        window.openTaskHistoryModal = function(taskId) {
+            const p = projects[currentProjectId];
+            const task = p.tasks.find(t => t.id == taskId);
+            if(!task) return;
+            
+            document.getElementById('historyModalTitle').innerText = `ประวัติผลงาน: ${task.name}`;
+            const listContainer = document.getElementById('taskHistoryList'); listContainer.innerHTML = '';
+            
+            const historyDates = Object.keys(p.history || {}).sort();
+            let labels = [], dataActual = [];
+            
+            historyDates.forEach(d => {
+                let rec = p.history[d][task.id];
+                if(rec && (rec.progress > 0 || rec.remark)) {
+                    labels.push(d); dataActual.push(rec.progress);
+                    let remTxt = rec.remark ? `💬 ${rec.remark}` : '-';
+                    let li = document.createElement('div'); li.className = "flex justify-between items-center bg-gray-50 p-2 rounded border";
+                    li.innerHTML = `
+                        <div><span class="font-bold text-gray-800">${d}</span> <span class="text-green-600 font-bold ml-2">ทำได้ ${rec.progress.toFixed(2)}%</span><div class="text-xs text-gray-500 mt-1">${remTxt}</div></div>
+                        <button onclick="editHistoryDate('${d}')" class="text-xs bg-blue-100 text-blue-700 px-3 py-1 rounded font-bold hover:bg-blue-200">✏️ แก้ไข</button>
+                    `;
+                    listContainer.prepend(li);
+                }
+            });
+
+            if(labels.length === 0) listContainer.innerHTML = '<p class="text-gray-500">ยังไม่มีประวัติการบันทึก</p>';
+
+            if(taskHistoryChartInstance) taskHistoryChartInstance.destroy();
+            taskHistoryChartInstance = new Chart(document.getElementById('taskHistoryChart').getContext('2d'), {
+                type: 'line',
+                data: { labels: labels, datasets: [{ label: '% ความก้าวหน้าสะสม', data: dataActual, borderColor: '#3b82f6', backgroundColor: 'rgba(59, 130, 246, 0.2)', fill: true, tension: 0.2 }] },
+                options: { responsive: true, scales: { y: { min: 0, max: 100 } } }
+            });
+
+            document.getElementById('taskHistoryModal').classList.remove('hidden');
+        }
+
+        window.closeTaskHistoryModal = function() { document.getElementById('taskHistoryModal').classList.add('hidden'); }
+        window.editHistoryDate = function(dStr) {
+            closeTaskHistoryModal();
+            document.getElementById('updateDateInput').value = dStr;
+            renderWorkspace();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function calculateTaskPlanPct(task, targetDateStr) {
+            let s = new Date(task.start), e = new Date(task.end), currentD = new Date(targetDateStr);
+            if (currentD >= e) return 100;
+            if (currentD <= s) return 0;
+            return Math.min(100, Math.max(0, ((currentD - s) / (e - s)) * 100));
+        }
+
+        function getTaskActualPct(p, taskId, targetDateStr) {
+            let historyDates = Object.keys(p.history || {}).sort().filter(d => d <= targetDateStr);
+            if(historyDates.length === 0) return 0;
+            return p.history[historyDates[historyDates.length-1]][taskId]?.progress || 0;
         }
 
         window.renderWorkspace = function() {
@@ -429,41 +450,48 @@
             const selectedDate = document.getElementById('updateDateInput').value;
             if(!p || !p.tasks || p.tasks.length === 0) return;
 
-            const history = p.history || {};
-            const savedDataForDate = history[selectedDate] || {};
+            const savedDataForDate = (p.history || {})[selectedDate] || {};
 
             p.tasks.forEach(task => {
-                const saved = savedDataForDate[task.id] || { progress: '', qty: '' };
+                const saved = savedDataForDate[task.id] || { progress: '', qty: '', remark: '' };
+                let taskPlanPct = calculateTaskPlanPct(task, selectedDate);
+                let currentActualPct = getTaskActualPct(p, task.id, selectedDate);
                 
-                let taskPlanPct = 0;
-                let s = new Date(task.start), e = new Date(task.end), currentD = new Date(selectedDate);
-                if (currentD >= e) taskPlanPct = 100;
-                else if (currentD >= s) taskPlanPct = ((currentD - s) / (e - s)) * 100;
-                taskPlanPct = Math.min(100, Math.max(0, taskPlanPct));
-                let planQty = task.hasQty ? (taskPlanPct / 100) * task.totalQty : 0;
+                // ถือว่าถ้าในวันนี้ไม่มีข้อมูล ให้แสดง progress ล่าสุดในช่องสะสมไว้ก่อน
+                let displayCumul = saved.progress !== '' ? saved.progress : currentActualPct;
 
-                const div = document.createElement('div'); div.className = "p-4 bg-white border rounded shadow-sm space-y-3";
+                const div = document.createElement('div'); div.className = "p-4 bg-white border rounded shadow-sm space-y-3 relative";
                 
                 let inputHtml = '';
                 if(task.hasQty) {
                     inputHtml = `
                         <div class="grid grid-cols-3 gap-2 bg-gray-50 p-2 rounded border">
-                            <div><label class="text-[10px] font-bold">% ทำได้เพิ่มวันนี้</label><input type="number" id="prog_${task.id}" oninput="checkConflict(${task.id})" class="w-full p-1 border rounded text-xs"></div>
-                            <div><label class="text-[10px] font-bold">% สะสมถึงวันนี้</label><input type="number" value="${saved.progress}" id="cumul_${task.id}" oninput="checkConflict(${task.id})" class="w-full p-1 border rounded text-xs text-blue-600 font-bold"></div>
-                            <div><label class="text-[10px] font-bold">ปริมาณสะสม (${task.unit})</label><input type="number" value="${saved.qty || ''}" id="qty_${task.id}" oninput="checkConflict(${task.id})" class="w-full p-1 border rounded text-xs"></div>
+                            <div><label class="text-[10px] font-bold">% ทำเพิ่มวันนี้</label><input type="number" id="prog_${task.id}" oninput="checkConflict(${task.id})" class="w-full p-1 border rounded text-xs bg-white"></div>
+                            <div><label class="text-[10px] font-bold">% สะสมถึงวันนี้</label><input type="number" value="${saved.progress !== '' ? saved.progress : ''}" id="cumul_${task.id}" oninput="checkConflict(${task.id})" class="w-full p-1 border rounded text-xs bg-white placeholder-gray-400" placeholder="${currentActualPct.toFixed(1)}"></div>
+                            <div><label class="text-[10px] font-bold">ปริมาณ (${task.unit})</label><input type="number" value="${saved.qty || ''}" id="qty_${task.id}" oninput="checkConflict(${task.id})" class="w-full p-1 border rounded text-xs bg-white"></div>
                         </div>
-                        <p class="text-xs text-gray-500">📌 แผนงานของวันนี้ควรได้: <span class="text-blue-600 font-bold">${taskPlanPct.toFixed(1)}%</span> (${planQty.toFixed(1)} ${task.unit})</p>
                     `;
                 } else {
                     inputHtml = `
                         <div class="grid grid-cols-2 gap-2 bg-gray-50 p-2 rounded border">
-                            <div><label class="text-[10px] font-bold">% ทำได้เพิ่มวันนี้</label><input type="number" id="prog_${task.id}" oninput="checkConflict(${task.id})" class="w-full p-1 border rounded text-xs"></div>
-                            <div><label class="text-[10px] font-bold">% สะสมถึงวันนี้</label><input type="number" value="${saved.progress}" id="cumul_${task.id}" oninput="checkConflict(${task.id})" class="w-full p-1 border rounded text-xs text-blue-600 font-bold"></div>
+                            <div><label class="text-[10px] font-bold">% ทำเพิ่มวันนี้</label><input type="number" id="prog_${task.id}" oninput="checkConflict(${task.id})" class="w-full p-1.5 border rounded text-xs bg-white"></div>
+                            <div><label class="text-[10px] font-bold">% สะสมถึงวันนี้</label><input type="number" value="${saved.progress !== '' ? saved.progress : ''}" id="cumul_${task.id}" oninput="checkConflict(${task.id})" class="w-full p-1.5 border rounded text-xs bg-white placeholder-gray-400" placeholder="${currentActualPct.toFixed(1)}"></div>
                         </div>
-                        <p class="text-xs text-gray-500">📌 แผนงาน (Planned) ของวันนี้ควรได้: <span class="text-blue-600 font-bold">${taskPlanPct.toFixed(1)}%</span></p>
                     `;
                 }
-                div.innerHTML = `<div class="flex justify-between font-bold text-sm"><span>${task.name}</span><span class="text-xs bg-blue-100 px-2 rounded">W: ${task.weight.toFixed(2)}%</span></div>${inputHtml}<div id="warn_${task.id}" class="text-[10px] text-red-500 hidden">⚠️ ห้ามกรอกซ้ำซ้อนกัน! เลือกกรอกแค่ช่องเดียว</div>`;
+                div.innerHTML = `
+                    <div class="flex justify-between font-bold text-sm mb-1">
+                        <span>${task.name} <button onclick="openTaskHistoryModal(${task.id})" class="ml-2 text-xs text-blue-500 underline font-normal">📊 ดูประวัติ/กราฟ</button></span>
+                        <div class="flex gap-1 text-xs">
+                            <span class="bg-gray-100 text-gray-700 px-2 py-0.5 rounded font-semibold border">W: ${task.weight.toFixed(2)}%</span>
+                            <span class="bg-green-100 text-green-800 px-2 py-0.5 rounded font-semibold border border-green-200">ก้าวหน้าปัจจุบัน: ${currentActualPct.toFixed(1)}%</span>
+                        </div>
+                    </div>
+                    ${inputHtml}
+                    <div id="warn_${task.id}" class="text-[11px] text-red-500 hidden font-bold">⚠️ เลือกกรอกแค่ช่องเดียว! ห้ามกรอกช่อง "เพิ่มวันนี้" คู่กับ "สะสม"</div>
+                    <textarea id="remark_${task.id}" class="w-full p-2 border rounded text-xs text-gray-600 bg-gray-50" placeholder="ระบุรายละเอียดหน้างาน หรือหมายเหตุเพิ่มเติม...">${saved.remark || ''}</textarea>
+                    <p class="text-[11px] text-gray-500 font-semibold bg-blue-50 p-1.5 rounded inline-block">📌 แผนสะสมถึงวันนี้ควรได้: <span class="text-blue-600 font-bold">${taskPlanPct.toFixed(1)}%</span></p>
+                `;
                 container.appendChild(div);
             });
             renderSCurve();
@@ -480,30 +508,30 @@
             let dayRec = {}, hasErr = false;
 
             p.tasks.forEach(task => {
-                const progEl = document.getElementById(`prog_${task.id}`), cumulEl = document.getElementById(`cumul_${task.id}`), qtyEl = document.getElementById(`qty_${task.id}`);
+                const progEl = document.getElementById(`prog_${task.id}`), cumulEl = document.getElementById(`cumul_${task.id}`), qtyEl = document.getElementById(`qty_${task.id}`), remEl = document.getElementById(`remark_${task.id}`);
                 let filled = (progEl && progEl.value)?1:0; filled += (cumulEl && cumulEl.value)?1:0; filled += (qtyEl && qtyEl.value)?1:0;
                 if(filled > 1) hasErr = true;
 
-                let finalProg = 0, finalQty = 0;
-                if (cumulEl && cumulEl.value) { finalProg = parseFloat(cumulEl.value); finalQty = task.hasQty ? (finalProg/100)*task.totalQty : 0; }
-                else if (qtyEl && qtyEl.value && task.totalQty>0) { finalQty = parseFloat(qtyEl.value); finalProg = (finalQty/task.totalQty)*100; }
-                else if (progEl && progEl.value) {
-                    let prevCumul = 0;
-                    Object.keys(p.history||{}).sort().forEach(d => { if(d < selDate && p.history[d][task.id]) prevCumul = p.history[d][task.id].progress || 0; });
+                let finalProg = getTaskActualPct(p, task.id, selDate), finalQty = 0; // default to existing
+                if (cumulEl && cumulEl.value !== '') { finalProg = parseFloat(cumulEl.value); finalQty = task.hasQty ? (finalProg/100)*task.totalQty : 0; }
+                else if (qtyEl && qtyEl.value !== '' && task.totalQty>0) { finalQty = parseFloat(qtyEl.value); finalProg = (finalQty/task.totalQty)*100; }
+                else if (progEl && progEl.value !== '') {
+                    // ถ้ากรอกเปอร์เซ็นต์รายวัน ให้ไปเอาสะสมของวันก่อนหน้ามาบวกเพิ่ม
+                    let prevDates = Object.keys(p.history||{}).sort().filter(d => d < selDate);
+                    let prevCumul = prevDates.length > 0 ? (p.history[prevDates[prevDates.length-1]][task.id]?.progress || 0) : 0;
                     finalProg = prevCumul + parseFloat(progEl.value);
                     finalQty = task.hasQty ? (finalProg/100)*task.totalQty : 0;
-                } else if(p.history && p.history[selDate] && p.history[selDate][task.id]) {
-                    finalProg = p.history[selDate][task.id].progress; finalQty = p.history[selDate][task.id].qty;
-                }
+                } 
                 
-                dayRec[task.id] = { progress: Math.min(100, finalProg), qty: finalQty };
+                dayRec[task.id] = { progress: Math.min(100, finalProg), qty: finalQty, remark: remEl ? remEl.value : '' };
             });
 
-            if(hasErr) { showToast('กรอกซ้ำซ้อน กรุณาเลือกกรอกแค่ช่องเดียว', 'error'); return; }
+            if(hasErr) { showToast('ข้อมูลซ้ำซ้อน โปรดกรอกแค่ 1 ช่องต่อ 1 งาน', 'error'); return; }
             const history = { ...(p.history || {}) }; history[selDate] = dayRec;
-            await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'projects', currentProjectId), { history });
-            showToast('บันทึกและอัปเดตสะสมสำเร็จ!');
-            renderWorkspace();
+            try {
+                await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'projects', currentProjectId), { history });
+                showToast('บันทึกผลงานสำเร็จ!'); renderWorkspace();
+            } catch(e) { showToast('บันทึกไม่สำเร็จ', 'error'); }
         });
 
         function renderGantt() {
@@ -522,19 +550,41 @@
             let curr = new Date(minDate);
             while(curr <= maxDate) {
                 let m = ["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."][curr.getMonth()];
-                monthsHtml += `<div class="flex-1 text-center font-bold text-xs bg-blue-100 border-r py-1">${m} ${curr.getFullYear()}</div>`;
-                weeksHtml += `<div class="flex-1 grid grid-cols-4 text-[10px] text-center bg-gray-100 border-r"><span class="border-r">W1</span><span class="border-r">W2</span><span class="border-r">W3</span><span>W4</span></div>`;
+                monthsHtml += `<div class="flex-1 text-center font-bold text-xs bg-blue-100 border-r py-1 border-blue-200">${m} ${curr.getFullYear()}</div>`;
+                weeksHtml += `<div class="flex-1 grid grid-cols-4 text-[10px] text-center bg-gray-100 border-r text-gray-500"><span class="border-r">W1</span><span class="border-r">W2</span><span class="border-r">W3</span><span>W4</span></div>`;
                 curr.setMonth(curr.getMonth() + 1);
             }
 
-            let tasksHtml = '<div class="space-y-2 relative pt-2">';
+            let tasksHtml = '<div class="space-y-3 relative pt-3 pb-2">';
             const totalProjTime = maxDate - minDate || 1;
+            const todayStr = new Date().toISOString().split('T')[0];
+
             p.tasks.forEach(t => {
                 const leftPct = Math.max(0, ((new Date(t.start) - minDate) / totalProjTime) * 100);
-                const widthPct = Math.max(2, ((new Date(t.end) - new Date(t.start)) / totalProjTime) * 100);
-                tasksHtml += `<div class="flex items-center text-xs bg-white p-2 border rounded shadow-sm"><div class="w-44 font-bold truncate pr-2">${t.name}</div><div class="flex-1 bg-gray-100 h-6 rounded relative overflow-hidden"><div class="absolute top-0 bottom-0 bg-blue-500 rounded flex items-center px-2 text-white font-bold text-[11px]" style="left: ${leftPct}%; width: ${widthPct}%;">${t.start} ถึง ${t.end}</div></div></div>`;
+                const widthPct = Math.max(1, ((new Date(t.end) - new Date(t.start)) / totalProjTime) * 100);
+                
+                let planPct = calculateTaskPlanPct(t, todayStr);
+                let actualPct = getTaskActualPct(p, t.id, todayStr);
+                
+                let barColor = 'bg-green-500'; // ตามแผน
+                if (actualPct < planPct - 0.5) barColor = 'bg-red-500'; // ช้ากว่าแผน
+                else if (actualPct > planPct + 0.5) barColor = 'bg-blue-800'; // เร็วกว่าแผน
+
+                let tooltipTxt = `${t.name}\nเริ่ม: ${t.start} | สิ้นสุด: ${t.end}\nแผนงาน: ${planPct.toFixed(1)}% | ทำได้จริง: ${actualPct.toFixed(1)}%`;
+
+                tasksHtml += `
+                    <div class="flex items-center text-xs bg-white p-2 border rounded shadow-sm hover:bg-gray-50">
+                        <div class="w-44 font-bold truncate pr-2 text-gray-700 tooltip-custom cursor-help" data-tooltip="${tooltipTxt}">${t.name}</div>
+                        <div class="flex-1 h-5 relative rounded tooltip-custom cursor-help" data-tooltip="${tooltipTxt}">
+                            <!-- เส้นแผนงาน (เทาอ่อน) -->
+                            <div class="absolute top-0 bottom-0 bg-gray-200 rounded-md" style="left: ${leftPct}%; width: ${widthPct}%;"></div>
+                            <!-- เส้นความก้าวหน้าจริง (ทับลงไปตาม % ที่ทำได้) -->
+                            <div class="absolute top-0 bottom-0 ${barColor} rounded-md shadow-sm" style="left: ${leftPct}%; width: ${(widthPct * actualPct) / 100}%;"></div>
+                        </div>
+                    </div>
+                `;
             });
-            container.innerHTML = `<div class="border rounded-lg overflow-hidden bg-white"><div class="flex border-b">${monthsHtml}</div><div class="flex">${weeksHtml}</div></div>${tasksHtml}</div>`;
+            container.innerHTML = `<div class="border rounded-lg overflow-hidden bg-white"><div class="flex border-b">${monthsHtml}</div><div class="flex border-b">${weeksHtml}</div>${tasksHtml}</div>`;
         }
 
         function renderSCurve() {
@@ -547,7 +597,6 @@
                 if(new Date(t.end) > maxDate) maxDate = new Date(t.end);
             });
 
-            const projStartMs = minDate.getTime(), projEndMs = maxDate.getTime();
             let plannedLabels = [], plannedData = [];
             let totalDays = (maxDate - minDate) / (1000 * 60 * 60 * 24) || 1;
             let step = Math.max(1, Math.floor(totalDays / 10));
@@ -556,11 +605,7 @@
             while(tempDate <= maxDate) {
                 let dStr = tempDate.toISOString().split('T')[0]; plannedLabels.push(dStr);
                 let planSum = 0;
-                p.tasks.forEach(task => {
-                    let s = new Date(task.start), e = new Date(task.end), currentD = new Date(dStr);
-                    if(currentD >= e) planSum += task.weight;
-                    else if(currentD >= s) planSum += task.weight * ((currentD - s) / (e - s || 1));
-                });
+                p.tasks.forEach(t => { planSum += calculateTaskPlanPct(t, dStr) * (t.weight/100); });
                 plannedData.push(parseFloat(Math.min(100, planSum).toFixed(2)));
                 tempDate.setDate(tempDate.getDate() + step);
             }
@@ -568,61 +613,48 @@
             const historyDates = Object.keys(p.history || {}).sort();
             let allLabels = Array.from(new Set([...plannedLabels, ...historyDates])).sort();
             
-            let actualDataMap = {};
-            historyDates.forEach(dateStr => {
-                let totalActual = 0;
-                p.tasks.forEach(task => {
-                    let rec = p.history[dateStr][task.id] || { progress: 0 };
-                    totalActual += (rec.progress / 100) * task.weight;
-                });
-                actualDataMap[dateStr] = parseFloat(totalActual.toFixed(2));
-            });
-
             let finalActualData = [], finalPlannedData = [];
+            let lastKnownActual = 0;
+
             allLabels.forEach(dStr => {
                 let planSum = 0;
-                p.tasks.forEach(task => {
-                    let s = new Date(task.start), e = new Date(task.end), currentD = new Date(dStr);
-                    if(currentD >= e) planSum += task.weight;
-                    else if(currentD >= s) planSum += task.weight * ((currentD - s) / (e - s || 1));
-                });
+                p.tasks.forEach(t => { planSum += calculateTaskPlanPct(t, dStr) * (t.weight/100); });
                 finalPlannedData.push(parseFloat(Math.min(100, planSum).toFixed(2)));
-                finalActualData.push(actualDataMap[dStr] !== undefined ? actualDataMap[dStr] : null);
+
+                // Calculate Actual at this date
+                if(historyDates.includes(dStr)) {
+                    let totalAct = 0;
+                    p.tasks.forEach(t => { totalAct += (p.history[dStr][t.id]?.progress || 0) * (t.weight/100); });
+                    lastKnownActual = parseFloat(totalAct.toFixed(2));
+                    finalActualData.push(lastKnownActual);
+                } else {
+                    finalActualData.push(null);
+                }
             });
 
-            const selectedDateInput = document.getElementById('updateDateInput').value;
-            let currentActual = 0, currentPlanned = 0;
+            const selDate = document.getElementById('updateDateInput').value || new Date().toISOString().split('T')[0];
+            let currentPlanned = 0, currentActual = 0;
+            p.tasks.forEach(t => { currentPlanned += calculateTaskPlanPct(t, selDate) * (t.weight/100); });
             
-            // หาผลงานจริงของวันที่เลือก
-            if(actualDataMap[selectedDateInput] !== undefined) {
-                currentActual = actualDataMap[selectedDateInput];
-            } else {
-                let prevDates = historyDates.filter(d => d <= selectedDateInput);
-                if(prevDates.length > 0) currentActual = actualDataMap[prevDates[prevDates.length - 1]];
+            let prevD = historyDates.filter(d => d <= selDate);
+            if(prevD.length > 0) {
+                let dRec = p.history[prevD[prevD.length-1]];
+                p.tasks.forEach(t => { currentActual += (dRec[t.id]?.progress || 0) * (t.weight/100); });
             }
-
-            let targetPlanDate = selectedDateInput || new Date().toISOString().split('T')[0];
-            p.tasks.forEach(task => {
-                let s = new Date(task.start), e = new Date(task.end), currentD = new Date(targetPlanDate);
-                if(currentD >= e) currentPlanned += task.weight;
-                else if(currentD >= s) currentPlanned += task.weight * ((currentD - s) / (e - s || 1));
-            });
-            currentPlanned = parseFloat(Math.min(100, currentPlanned).toFixed(2));
 
             document.getElementById('summaryActualText').innerText = currentActual.toFixed(2) + '%';
             document.getElementById('summaryPlannedText').innerText = currentPlanned.toFixed(2) + '%';
 
             const statusText = document.getElementById('analysisStatusText'), analysisBox = document.getElementById('analysisBox');
             const diffPct = parseFloat((currentActual - currentPlanned).toFixed(2));
-            let avgDailyPlanRate = 100 / (totalDays || 1);
-            let diffDays = diffPct / avgDailyPlanRate;
+            let diffDays = diffPct / (100 / totalDays);
 
             if(diffPct >= 0) {
-                statusText.innerText = `โครงการเร็วกว่าแผนงาน (+${diffPct}%) หรือเร็วกว่าแผนประมาณ +${diffDays.toFixed(2)} วัน`;
+                statusText.innerText = `เร็วกว่าแผนงาน (+${diffPct}%) ประมาณ +${diffDays.toFixed(2)} วัน`;
                 analysisBox.className = "mb-6 p-4 rounded-lg border bg-green-50 border-green-200 flex flex-col md:flex-row justify-between items-center gap-4";
                 statusText.className = "text-lg font-bold text-green-800";
             } else {
-                statusText.innerText = `โครงการช้ากว่าแผนงาน (${diffPct}%) หรือช้ากว่าแผนประมาณ ${diffDays.toFixed(2)} วัน`;
+                statusText.innerText = `ช้ากว่าแผนงาน (${diffPct}%) ประมาณ ${diffDays.toFixed(2)} วัน`;
                 analysisBox.className = "mb-6 p-4 rounded-lg border bg-red-50 border-red-200 flex flex-col md:flex-row justify-between items-center gap-4";
                 statusText.className = "text-lg font-bold text-red-800";
             }
@@ -633,8 +665,8 @@
                 data: {
                     labels: allLabels,
                     datasets: [
-                        { label: 'ผลงานจริง (Actual S-Curve)', data: finalActualData, borderColor: '#10b981', backgroundColor: 'rgba(16, 185, 129, 0.1)', fill: true, tension: 0.3, borderWidth: 3, spanGaps: true },
-                        { label: 'แผนงาน (Planned S-Curve)', data: finalPlannedData, borderColor: '#9ca3af', borderDash: [5, 5], fill: false, tension: 0.3, borderWidth: 2 }
+                        { label: 'ผลงานจริง (Actual)', data: finalActualData, borderColor: '#10b981', backgroundColor: 'rgba(16, 185, 129, 0.1)', fill: true, tension: 0.3, borderWidth: 3, spanGaps: true },
+                        { label: 'แผนงาน (Planned)', data: finalPlannedData, borderColor: '#9ca3af', borderDash: [5, 5], fill: false, tension: 0.3, borderWidth: 2 }
                     ]
                 },
                 options: { responsive: true, scales: { y: { min: 0, max: 100 } } }
